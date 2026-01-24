@@ -46,6 +46,12 @@ pub fn deinit(self: *Self, gpa: mem.Allocator) void {
     self.buffer.deinit(gpa);
 }
 
+pub fn append(self: *Self, gpa: mem.Allocator, value: anytype) !void {
+    const T = @TypeOf(value);
+    assert(@sizeOf(T) == self.meta.size);
+    try self.appendRaw(gpa, mem.asBytes(&value));
+}
+
 pub fn appendRaw(self: *Self, gpa: mem.Allocator, data: []const u8) !void {
     assert(data.len == self.meta.size);
     try self.buffer.appendSlice(gpa, data);
@@ -143,6 +149,31 @@ test "Field.appendRaw" {
     };
     for (test_cases) |tc| {
         try f2.appendRaw(alloc, mem.asBytes(&tc));
+    }
+    for (test_cases, 0..) |expected, idx| {
+        const actual_bytes = f2.at(idx);
+        try testing.expectEqual(expected, mem.bytesAsValue(u32, actual_bytes).*);
+    }
+}
+
+test "Field.append" {
+    const alloc = testing.allocator;
+
+    var f1 = try init(alloc, .fromScalar(u8));
+    defer f1.deinit(alloc);
+    try f1.append(alloc, @as(u8, 0x88));
+    try testing.expectEqual(@as(u8, 0x88), mem.bytesAsValue(u8, f1.at(0)).*);
+
+    var f2 = try init(alloc, .fromScalar(u32));
+    defer f2.deinit(alloc);
+    const test_cases = [_]u32{
+        0x00000000,
+        0xDEADBEEF,
+        0xCAFE8808,
+        0xFFFFFFFF,
+    };
+    for (test_cases) |tc| {
+        try f2.append(alloc, tc);
     }
     for (test_cases, 0..) |expected, idx| {
         const actual_bytes = f2.at(idx);

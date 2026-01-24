@@ -68,6 +68,35 @@ pub fn deinit(self: *Self, gpa: mem.Allocator) void {
     self.meta.deinit(gpa);
 }
 
+pub fn append(self: *Self, gpa: mem.Allocator, component_list: anytype) !void {
+    const ti = @typeInfo(@TypeOf(component_list));
+    assert(ti == .@"struct");
+
+    const fields = ti.@"struct".fields;
+    assert(fields.len == self.components.len);
+
+    var cid_indexes: [fields.len]usize = undefined;
+    inline for (fields, 0..) |f, i| {
+        const T = f.type;
+        assert(@hasDecl(T, "cid"));
+        cid_indexes[i] = self.indexOfCID(T.cid) orelse unreachable;
+    }
+
+    // check for duplication
+    for (fields, 0..) |_, i| {
+        for (0..i) |j| if (cid_indexes[i] == cid_indexes[j]) unreachable;
+    }
+
+    inline for (fields, cid_indexes, 0..) |f, cid_idx, i| {
+        const value = @field(component_list, f.name);
+        self.components[cid_idx].append(gpa, value) catch |err| {
+            for (0..i) |j|
+                self.components[cid_indexes[j]].pop();
+            return err;
+        };
+    }
+}
+
 pub fn appendRaw(self: *Self, gpa: mem.Allocator, data: []const []const []const u8) !void {
     assert(data.len == self.components.len);
     for (self.components, data, 0..) |*c, d, i| {
@@ -94,6 +123,12 @@ pub fn len(self: *const Self) usize {
     for (self.components[1..]) |comp|
         assert(l == comp.len());
     return l;
+}
+
+pub fn indexOfCID(self: *const Self, cid: u32) ?usize {
+    return for (self.meta.components, 0..) |comp, idx| {
+        if (comp.cid == cid) break idx;
+    } else null;
 }
 
 test "Archetype.Meta.from" {

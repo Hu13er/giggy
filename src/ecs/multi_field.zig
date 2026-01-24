@@ -56,10 +56,29 @@ pub fn deinit(self: *Self, gpa: mem.Allocator) void {
     self.meta.deinit(gpa);
 }
 
+pub fn append(self: *Self, gpa: mem.Allocator, value: anytype) !void {
+    const T = @TypeOf(value);
+    const ti = @typeInfo(T);
+
+    assert(ti == .@"struct");
+    assert(@hasDecl(T, "cid"));
+    assert(T.cid == self.meta.cid);
+    const field_count = ti.@"struct".fields.len;
+    assert(field_count == self.fields.len);
+
+    var extracted: [field_count][]const u8 = undefined;
+    inline for (ti.@"struct".fields, 0..) |f, i| {
+        const field_ptr = &@field(value, f.name);
+        extracted[i] = std.mem.asBytes(field_ptr);
+    }
+
+    try self.appendRaw(gpa, extracted[0..]);
+}
+
 pub fn appendRaw(self: *Self, gpa: mem.Allocator, data: []const []const u8) !void {
     assert(data.len == self.fields.len);
     for (self.fields, data, 0..) |*f, d, i| {
-        f.append(gpa, d) catch |err| {
+        f.appendRaw(gpa, d) catch |err| {
             for (0..i) |j|
                 self.fields[j].pop();
             return err;
@@ -129,6 +148,56 @@ test "MultiField.Meta.clone" {
     const meta_clone = try meta.clone(alloc);
     defer meta_clone.deinit(alloc);
     try testing.expectEqualDeep(meta, meta_clone);
+}
+
+test "MultiField.appendRaw" {
+    const alloc = testing.allocator;
+    const C = struct {
+        const cid = 1;
+        x: u32,
+        y: u32,
+    };
+    var multi = try init(alloc, .from(C));
+    defer multi.deinit(alloc);
+    const data = [_][]const u8{
+        &mem.toBytes(@as(u32, 0xDEADBEEF)),
+        &mem.toBytes(@as(u32, 0xCAFECAFE)),
+    };
+    try multi.appendRaw(alloc, &data);
+    try testing.expectEqual(multi.len(), 1);
+    try testing.expectEqual(
+        @as(u32, 0xDEADBEEF),
+        mem.bytesAsValue(u32, multi.fields[0].at(0)).*,
+    );
+    try testing.expectEqual(
+        @as(u32, 0xCAFECAFE),
+        mem.bytesAsValue(u32, multi.fields[1].at(0)).*,
+    );
+}
+
+test "MultiField.append" {
+    const alloc = testing.allocator;
+    const C = struct {
+        pub const cid = 1;
+        x: u32,
+        y: u32,
+    };
+    var multi = try init(alloc, .from(C));
+    defer multi.deinit(alloc);
+    const value = C{
+        .x = 0xDEADBEEF,
+        .y = 0xCAFECAFE,
+    };
+    try multi.append(alloc, value);
+    try testing.expectEqual(multi.len(), 1);
+    try testing.expectEqual(
+        @as(u32, 0xDEADBEEF),
+        mem.bytesAsValue(u32, multi.fields[0].at(0)).*,
+    );
+    try testing.expectEqual(
+        @as(u32, 0xCAFECAFE),
+        mem.bytesAsValue(u32, multi.fields[1].at(0)).*,
+    );
 }
 
 const std = @import("std");
