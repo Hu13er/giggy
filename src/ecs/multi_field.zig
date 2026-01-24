@@ -49,7 +49,7 @@ pub fn init(gpa: mem.Allocator, meta: Meta) !Self {
     };
 }
 
-pub fn deinit(self: *Self, gpa: mem.Allocator) void {
+pub fn deinit(self: *const Self, gpa: mem.Allocator) void {
     for (self.fields) |*f|
         f.deinit(gpa);
     gpa.free(self.fields);
@@ -88,7 +88,7 @@ pub fn appendRaw(self: *Self, gpa: mem.Allocator, data: []const []const u8) !voi
 
 pub fn remove(self: *Self, index: usize) void {
     assert(index < self.len());
-    for (self.fields) |f| f.remove(index);
+    for (self.fields) |*f| f.remove(index);
 }
 
 pub fn pop(self: *Self) void {
@@ -167,11 +167,11 @@ test "MultiField.appendRaw" {
     try testing.expectEqual(multi.len(), 1);
     try testing.expectEqual(
         @as(u32, 0xDEADBEEF),
-        mem.bytesAsValue(u32, multi.fields[0].at(0)).*,
+        mem.bytesAsValue(u32, multi.fields[0].atRaw(0)).*,
     );
     try testing.expectEqual(
         @as(u32, 0xCAFECAFE),
-        mem.bytesAsValue(u32, multi.fields[1].at(0)).*,
+        mem.bytesAsValue(u32, multi.fields[1].atRaw(0)).*,
     );
 }
 
@@ -192,11 +192,11 @@ test "MultiField.append" {
     try testing.expectEqual(multi.len(), 1);
     try testing.expectEqual(
         @as(u32, 0xDEADBEEF),
-        mem.bytesAsValue(u32, multi.fields[0].at(0)).*,
+        mem.bytesAsValue(u32, multi.fields[0].atRaw(0)).*,
     );
     try testing.expectEqual(
         @as(u32, 0xCAFECAFE),
-        mem.bytesAsValue(u32, multi.fields[1].at(0)).*,
+        mem.bytesAsValue(u32, multi.fields[1].atRaw(0)).*,
     );
 }
 

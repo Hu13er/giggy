@@ -80,7 +80,11 @@ pub fn len(self: *const Self) usize {
     return self.buffer.items.len / self.meta.size;
 }
 
-pub inline fn at(self: *Self, index: usize) []u8 {
+pub inline fn at(self: *const Self, comptime T: type, index: usize) *T {
+    return @alignCast(mem.bytesAsValue(T, self.atRaw(index)));
+}
+
+pub inline fn atRaw(self: *const Self, index: usize) []u8 {
     const start = index * self.meta.size;
     return self.buffer.items[start .. start + self.meta.size];
 }
@@ -137,7 +141,7 @@ test "Field.appendRaw" {
     var f1 = try init(alloc, .fromScalar(u8));
     defer f1.deinit(alloc);
     try f1.appendRaw(alloc, &[_]u8{0x88});
-    try testing.expectEqual(@as(u8, 0x88), mem.bytesAsValue(u8, f1.at(0)).*);
+    try testing.expectEqual(@as(u8, 0x88), mem.bytesAsValue(u8, f1.atRaw(0)).*);
 
     var f2 = try init(alloc, .fromScalar(u32));
     defer f2.deinit(alloc);
@@ -151,7 +155,7 @@ test "Field.appendRaw" {
         try f2.appendRaw(alloc, mem.asBytes(&tc));
     }
     for (test_cases, 0..) |expected, idx| {
-        const actual_bytes = f2.at(idx);
+        const actual_bytes = f2.atRaw(idx);
         try testing.expectEqual(expected, mem.bytesAsValue(u32, actual_bytes).*);
     }
 }
@@ -162,7 +166,7 @@ test "Field.append" {
     var f1 = try init(alloc, .fromScalar(u8));
     defer f1.deinit(alloc);
     try f1.append(alloc, @as(u8, 0x88));
-    try testing.expectEqual(@as(u8, 0x88), mem.bytesAsValue(u8, f1.at(0)).*);
+    try testing.expectEqual(@as(u8, 0x88), mem.bytesAsValue(u8, f1.atRaw(0)).*);
 
     var f2 = try init(alloc, .fromScalar(u32));
     defer f2.deinit(alloc);
@@ -176,7 +180,7 @@ test "Field.append" {
         try f2.append(alloc, tc);
     }
     for (test_cases, 0..) |expected, idx| {
-        const actual_bytes = f2.at(idx);
+        const actual_bytes = f2.atRaw(idx);
         try testing.expectEqual(expected, mem.bytesAsValue(u32, actual_bytes).*);
     }
 }

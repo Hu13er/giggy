@@ -43,6 +43,38 @@ pub const Meta = struct {
     }
 };
 
+pub const Iterator = struct {
+    archetype: *Self,
+    index: usize,
+
+    pub fn next(self: *Iterator) bool {
+        if (self.index + 1 >= self.archetype.len()) return false;
+        self.index += 1;
+        return true;
+    }
+
+    pub fn get(self: *const Iterator, comptime T: type) StructFieldPointer(T) {
+        const ti = @typeInfo(T);
+        assert(ti == .@"struct");
+        assert(@hasDecl(T, "cid"));
+        const comp = self.archetype.components[self.archetype.indexOfCID(T.cid) orelse unreachable];
+
+        var out: StructFieldPointer(T) = undefined;
+        inline for (ti.@"struct".fields, 0..) |f, i| {
+            @field(out, f.name) = comp.fields[i].at(f.type, self.index);
+        }
+
+        return out;
+    }
+};
+
+pub fn iter(self: *Self) Iterator {
+    return .{
+        .archetype = self,
+        .index = 0,
+    };
+}
+
 pub fn init(gpa: mem.Allocator, meta: Meta) !Self {
     var comps = try gpa.alloc(MultiField, meta.components.len);
     errdefer gpa.free(comps);
@@ -131,6 +163,53 @@ pub fn indexOfCID(self: *const Self, cid: u32) ?usize {
     } else null;
 }
 
+pub fn StructFieldPointer(comptime T: type) type {
+    const ti = @typeInfo(T);
+    assert(ti == .@"struct");
+
+    const fields = ti.@"struct".fields;
+
+    var new_fields: [fields.len]std.builtin.Type.StructField = undefined;
+
+    inline for (fields, 0..) |f, i| {
+        new_fields[i] = .{
+            .name = f.name,
+            .type = *f.type,
+            .default_value_ptr = null,
+            .is_comptime = false,
+            .alignment = @alignOf(*f.type),
+        };
+    }
+
+    return @Type(.{
+        .@"struct" = .{
+            .layout = .auto,
+            .fields = &new_fields,
+            .decls = &.{},
+            .is_tuple = false,
+        },
+    });
+}
+
+test StructFieldPointer {
+    const C1 = struct {
+        pub const cid = 1;
+        x: u32,
+        y: u32,
+    };
+    const C1View = StructFieldPointer(C1);
+    var c: C1 = .{
+        .x = 5,
+        .y = 10,
+    };
+    const v: C1View = .{
+        .x = &c.x,
+        .y = &c.y,
+    };
+    try testing.expectEqual(c.x, v.x.*);
+    try testing.expectEqual(c.y, v.y.*);
+}
+
 test "Archetype.Meta.from" {
     const C1 = struct {
         pub const cid = 1;
@@ -180,6 +259,46 @@ test "Archetype.Meta.clone" {
     const meta_clone = try meta.clone(alloc);
     defer meta_clone.deinit(alloc);
     try testing.expectEqualDeep(meta, meta_clone);
+}
+
+test Iterator {
+    const alloc = testing.allocator;
+    const Position = struct {
+        pub const cid = 1;
+        x: u32,
+        y: u32,
+    };
+    const Velocity = struct {
+        pub const cid = 2;
+        x: u32,
+        y: u32,
+    };
+    var archetype = try init(alloc, .from(&[_]type{ Position, Velocity }));
+    defer archetype.deinit(alloc);
+
+    try archetype.append(alloc, .{ Position{ .x = 0, .y = 0 }, Velocity{ .x = 1, .y = 1 } });
+    try archetype.append(alloc, .{ Position{ .x = 100, .y = 100 }, Velocity{ .x = 0, .y = 0 } });
+
+    try testing.expectEqual(2, archetype.len());
+
+    var it = archetype.iter();
+
+    const p1v = it.get(Position);
+    try testing.expectEqual(0, p1v.x.*);
+    try testing.expectEqual(0, p1v.y.*);
+    const v1v = it.get(Velocity);
+    try testing.expectEqual(1, v1v.x.*);
+    try testing.expectEqual(1, v1v.y.*);
+
+    try testing.expect(it.next() == true);
+    const p2v = it.get(Position);
+    try testing.expectEqual(100, p2v.x.*);
+    try testing.expectEqual(100, p2v.y.*);
+    const v2v = it.get(Velocity);
+    try testing.expectEqual(0, v2v.x.*);
+    try testing.expectEqual(0, v2v.y.*);
+
+    try testing.expect(it.next() == false);
 }
 
 const std = @import("std");
