@@ -2,6 +2,8 @@ const rl = @cImport({
     @cInclude("raylib.h");
 });
 
+const ecs = @import("ecs/ecs.zig");
+
 pub fn main() anyerror!void {
     // Initialization
     //--------------------------------------------------------------------------------------
@@ -16,11 +18,6 @@ pub fn main() anyerror!void {
 
     // Main game loop
     while (!rl.WindowShouldClose()) { // Detect window close button or ESC key
-        // Update
-        //----------------------------------------------------------------------------------
-        // TODO: Update your variables here
-        //----------------------------------------------------------------------------------
-
         // Draw
         //----------------------------------------------------------------------------------
         rl.BeginDrawing();
@@ -28,7 +25,7 @@ pub fn main() anyerror!void {
 
         rl.ClearBackground(rl.GRAY);
 
-        rl.DrawText("Congrats! You created your first window!", 190, 200, 20, rl.LIGHTGRAY);
+        rl.DrawText("Hello giggy!", 190, 200, 20, rl.LIGHTGRAY);
         //----------------------------------------------------------------------------------
     }
 }
