@@ -1,6 +1,7 @@
 pub const Archetype = struct {
     meta: Meta,
     components: []MultiField,
+    hash: u64,
 
     const Self = @This();
 
@@ -40,6 +41,13 @@ pub const Archetype = struct {
                 comp.deinit(gpa);
             gpa.free(self.components);
         }
+
+        pub fn hash(self: *const Meta) u64 {
+            var hasher = std.hash.Wyhash.init(0);
+            for (self.components) |comp|
+                hasher.update(mem.asBytes(&comp.cid));
+            return hasher.final();
+        }
     };
 
     pub const Iterator = struct {
@@ -52,13 +60,43 @@ pub const Archetype = struct {
             return true;
         }
 
-        pub fn get(self: *const Iterator, comptime T: type) StructFieldPointer(T) {
+        pub fn get(self: *const Iterator, comptime View: type) View {
+            const view_ti = @typeInfo(View);
+            if (view_ti != .@"struct")
+                @compileError("View should be a struct");
+            const view_fields = view_ti.@"struct".fields;
+            if (!@hasDecl(View, "Of"))
+                @compileError("View should declare 'Of'");
+            const Of = View.Of;
+            const comp_ti = @typeInfo(Of);
+            if (comp_ti != .@"struct")
+                @compileError("View.Of should be a struct");
+            const comp_fields = comp_ti.@"struct".fields;
+            if (!@hasDecl(Of, "cid"))
+                @compileError("View.Of is not component");
+
+            const comp = self.archetype.components[self.archetype.indexOfCID(Of.cid) orelse unreachable];
+            assert(comp_fields.len == comp.fields.len);
+
+            var out: View = undefined;
+            inline for (view_fields) |f| {
+                const comp_idx = std.meta.fieldIndex(Of, f.name) orelse
+                    @compileError("field " ++ f.name ++ " not found in component");
+                @field(out, f.name) = comp.fields[comp_idx].at(comp_fields[comp_idx].type, self.index);
+            }
+
+            return out;
+        }
+
+        pub fn getAuto(self: *const Iterator, comptime T: type) util.ViewOf(T) {
             const ti = @typeInfo(T);
-            assert(ti == .@"struct");
-            assert(@hasDecl(T, "cid"));
+            if (ti != .@"struct")
+                @compileError("component should be a struct");
+            if (!@hasDecl(T, "cid"))
+                @compileError("type T should be a component");
             const comp = self.archetype.components[self.archetype.indexOfCID(T.cid) orelse unreachable];
 
-            var out: StructFieldPointer(T) = undefined;
+            var out: util.ViewOf(T) = undefined;
             inline for (ti.@"struct".fields, 0..) |f, i| {
                 @field(out, f.name) = comp.fields[i].at(f.type, self.index);
             }
@@ -89,6 +127,7 @@ pub const Archetype = struct {
         return .{
             .meta = try meta.clone(gpa),
             .components = comps,
+            .hash = meta.hash(),
         };
     }
 
@@ -164,53 +203,6 @@ pub const Archetype = struct {
     }
 };
 
-pub fn StructFieldPointer(comptime T: type) type {
-    const ti = @typeInfo(T);
-    assert(ti == .@"struct");
-
-    const fields = ti.@"struct".fields;
-
-    var new_fields: [fields.len]std.builtin.Type.StructField = undefined;
-
-    inline for (fields, 0..) |f, i| {
-        new_fields[i] = .{
-            .name = f.name,
-            .type = *f.type,
-            .default_value_ptr = null,
-            .is_comptime = false,
-            .alignment = @alignOf(*f.type),
-        };
-    }
-
-    return @Type(.{
-        .@"struct" = .{
-            .layout = .auto,
-            .fields = &new_fields,
-            .decls = &.{},
-            .is_tuple = false,
-        },
-    });
-}
-
-test StructFieldPointer {
-    const C1 = struct {
-        pub const cid = 1;
-        x: u32,
-        y: u32,
-    };
-    const C1View = StructFieldPointer(C1);
-    var c: C1 = .{
-        .x = 5,
-        .y = 10,
-    };
-    const v: C1View = .{
-        .x = &c.x,
-        .y = &c.y,
-    };
-    try testing.expectEqual(c.x, v.x.*);
-    try testing.expectEqual(c.y, v.y.*);
-}
-
 test "Archetype.Meta.from" {
     const C1 = struct {
         pub const cid = 1;
@@ -269,10 +261,20 @@ test "Archetype.Iterator" {
         x: u32,
         y: u32,
     };
+    const PositionView = struct {
+        pub const Of = Position;
+        x: *u32,
+        y: *u32,
+    };
     const Velocity = struct {
         pub const cid = 2;
         x: u32,
         y: u32,
+    };
+    const VelocityView = struct {
+        pub const Of = Velocity;
+        x: *u32,
+        y: *u32,
     };
     var archetype = try Archetype.init(alloc, .from(&[_]type{ Position, Velocity }));
     defer archetype.deinit(alloc);
@@ -284,20 +286,35 @@ test "Archetype.Iterator" {
 
     var it = archetype.iter();
 
-    const p1v = it.get(Position);
+    const p1v = it.get(PositionView);
     try testing.expectEqual(0, p1v.x.*);
     try testing.expectEqual(0, p1v.y.*);
-    const v1v = it.get(Velocity);
+    const p1 = it.getAuto(Position);
+    try testing.expectEqual(0, p1.x.*);
+    try testing.expectEqual(0, p1.y.*);
+
+    const v1v = it.get(VelocityView);
     try testing.expectEqual(1, v1v.x.*);
     try testing.expectEqual(1, v1v.y.*);
+    const v1 = it.getAuto(Velocity);
+    try testing.expectEqual(1, v1.x.*);
+    try testing.expectEqual(1, v1.y.*);
 
     try testing.expect(it.next() == true);
-    const p2v = it.get(Position);
+
+    const p2v = it.get(PositionView);
     try testing.expectEqual(100, p2v.x.*);
     try testing.expectEqual(100, p2v.y.*);
-    const v2v = it.get(Velocity);
+    const p2 = it.getAuto(Position);
+    try testing.expectEqual(100, p2.x.*);
+    try testing.expectEqual(100, p2.y.*);
+
+    const v2v = it.get(VelocityView);
     try testing.expectEqual(0, v2v.x.*);
     try testing.expectEqual(0, v2v.y.*);
+    const v2 = it.get(VelocityView);
+    try testing.expectEqual(0, v2.x.*);
+    try testing.expectEqual(0, v2.y.*);
 
     try testing.expect(it.next() == false);
 }
@@ -307,5 +324,6 @@ const mem = std.mem;
 const testing = std.testing;
 const assert = std.debug.assert;
 
+const util = @import("util.zig");
 const Field = @import("field.zig").Field;
 const MultiField = @import("multi_field.zig").MultiField;
