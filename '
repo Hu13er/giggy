@@ -39,8 +39,6 @@ pub const World = struct {
         const hash = meta.hash();
         if (self.archetypes.get(hash)) |arch| return arch;
         const arch = try Archetype.init(self.gpa, meta);
-        self.archetypes.put(arch.hash, arch);
-        return arch;
     }
 };
 
