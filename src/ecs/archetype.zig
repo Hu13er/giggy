@@ -3,11 +3,13 @@ pub const Entity = u32;
 pub const Archetype = struct {
     meta: Meta,
     entities: EntityList,
+    entities_index: EntityIndexHashmap,
     components: []MultiField,
     hash: u64,
 
     const Self = @This();
     const EntityList = std.ArrayList(Entity);
+    const EntityIndexHashmap = std.AutoHashMap(Entity, usize);
 
     pub const Meta = struct {
         components: []const MultiField.Meta,
@@ -92,51 +94,12 @@ pub const Archetype = struct {
 
         pub fn get(self: *const Iterator, comptime View: type) View {
             assert(self.next_index > 0);
-
-            const view_ti = @typeInfo(View);
-            if (view_ti != .@"struct")
-                @compileError("View should be a struct");
-            const view_fields = view_ti.@"struct".fields;
-
-            if (!@hasDecl(View, "Of"))
-                @compileError("View should declare 'Of'");
-            const Of = View.Of;
-            const comp_ti = @typeInfo(Of);
-            if (comp_ti != .@"struct")
-                @compileError("View.Of should be a struct");
-            const comp_fields = comp_ti.@"struct".fields;
-            if (!@hasDecl(Of, "cid"))
-                @compileError("View.Of is not component");
-
-            const comp = self.archetype.components[self.archetype.indexOfCID(Of.cid) orelse unreachable];
-            assert(comp_fields.len == comp.fields.len);
-
-            var out: View = undefined;
-            inline for (view_fields) |f| {
-                const comp_idx = std.meta.fieldIndex(Of, f.name) orelse
-                    @compileError("field " ++ f.name ++ " not found in component");
-                @field(out, f.name) = comp.fields[comp_idx].at(comp_fields[comp_idx].type, self.next_index - 1);
-            }
-
-            return out;
+            return self.archetype.at(View, self.next_index - 1);
         }
 
-        pub fn getAuto(self: *const Iterator, comptime T: type) util.ViewOf(T) {
+        pub fn getAuto(self: *const Iterator, comptime C: type) util.ViewOf(C) {
             assert(self.next_index > 0);
-
-            const ti = @typeInfo(T);
-            if (ti != .@"struct")
-                @compileError("component should be a struct");
-            if (!@hasDecl(T, "cid"))
-                @compileError("type T should be a component");
-            const comp = self.archetype.components[self.archetype.indexOfCID(T.cid) orelse unreachable];
-
-            var out: util.ViewOf(T) = undefined;
-            inline for (ti.@"struct".fields, 0..) |f, i| {
-                @field(out, f.name) = comp.fields[i].at(f.type, self.next_index - 1);
-            }
-
-            return out;
+            return self.archetype.atAuto(C, self.next_index - 1);
         }
     };
 
@@ -162,6 +125,7 @@ pub const Archetype = struct {
         return .{
             .meta = try meta.clone(gpa),
             .entities = try EntityList.initCapacity(gpa, 1),
+            .entities_index = EntityIndexHashmap.init(gpa),
             .components = comps,
             .hash = meta.hash(),
         };
@@ -174,6 +138,7 @@ pub const Archetype = struct {
         }
         gpa.free(self.components);
         self.entities.deinit(gpa);
+        self.entities_index.deinit();
         self.meta.deinit(gpa);
     }
 
@@ -196,6 +161,8 @@ pub const Archetype = struct {
             for (0..i) |j| if (cid_indexes[i] == cid_indexes[j]) unreachable;
         }
 
+        try self.entities_index.put(entity, self.len());
+        errdefer _ = self.entities_index.remove(entity);
         try self.entities.append(gpa, entity);
         errdefer _ = self.entities.pop();
         inline for (fields, cid_indexes, 0..) |f, cid_idx, i| {
@@ -210,6 +177,8 @@ pub const Archetype = struct {
 
     pub fn appendRaw(self: *Self, gpa: mem.Allocator, entity: Entity, data: []const []const []const u8) !void {
         assert(data.len == self.components.len);
+        try self.entities_index.put(entity, self.len());
+        errdefer self.entities_index.remove(entity);
         try self.entities.append(gpa, entity);
         errdefer _ = self.entities.pop();
         for (self.components, data, 0..) |*c, d, i| {
@@ -221,15 +190,70 @@ pub const Archetype = struct {
         }
     }
 
-    pub fn remove(self: *Self, index: usize) void {
+    pub fn remove(self: *Self, index: usize) Entity {
         assert(index < self.len());
-        self.entities.swapRemove(index);
+        const entity = self.entities.swapRemove(index);
+        _ = self.entities_index.remove(entity);
         for (self.components) |comp|
             comp.remove(index);
+        return entity;
     }
 
-    pub fn pop(self: *Self) void {
-        self.remove(self.len() - 1);
+    pub fn pop(self: *Self) Entity {
+        return self.remove(self.len() - 1);
+    }
+
+    pub fn indexOf(self: *const Self, entity: Entity) ?usize {
+        return self.entities_index.get(entity);
+    }
+
+    pub fn at(self: *const Self, comptime View: type, index: usize) View {
+        assert(0 <= index and index < self.len());
+
+        const view_ti = @typeInfo(View);
+        if (view_ti != .@"struct")
+            @compileError("View should be a struct");
+        const view_fields = view_ti.@"struct".fields;
+
+        if (!@hasDecl(View, "Of"))
+            @compileError("View should declare 'Of'");
+        const Of = View.Of;
+        const comp_ti = @typeInfo(Of);
+        if (comp_ti != .@"struct")
+            @compileError("View.Of should be a struct");
+        const comp_fields = comp_ti.@"struct".fields;
+        if (!@hasDecl(Of, "cid"))
+            @compileError("View.Of is not component");
+
+        const comp = self.components[self.indexOfCID(Of.cid) orelse unreachable];
+        assert(comp_fields.len == comp.fields.len);
+
+        var out: View = undefined;
+        inline for (view_fields) |f| {
+            const comp_idx = std.meta.fieldIndex(Of, f.name) orelse
+                @compileError("field " ++ f.name ++ " not found in component");
+            @field(out, f.name) = comp.fields[comp_idx].at(comp_fields[comp_idx].type, index);
+        }
+
+        return out;
+    }
+
+    pub fn atAuto(self: *const Self, comptime C: type, index: usize) util.ViewOf(C) {
+        assert(0 <= index and index < self.len());
+
+        const ti = @typeInfo(C);
+        if (ti != .@"struct")
+            @compileError("component should be a struct");
+        if (!@hasDecl(C, "cid"))
+            @compileError("type T should be a component");
+        const comp = self.components[self.indexOfCID(C.cid) orelse unreachable];
+
+        var out: util.ViewOf(C) = undefined;
+        inline for (ti.@"struct".fields, 0..) |f, i| {
+            @field(out, f.name) = comp.fields[i].at(f.type, index);
+        }
+
+        return out;
     }
 
     pub fn len(self: *const Self) usize {
@@ -361,6 +385,72 @@ test "Archetype with empty Meta" {
         count += 1;
     }
     try testing.expectEqual(4, count);
+}
+
+test "Archetype.at" {
+    const alloc = testing.allocator;
+    const Position = struct {
+        pub const cid = 1;
+        x: u32,
+        y: u32,
+    };
+    const PositionView = struct {
+        pub const Of = Position;
+        x: *u32,
+        y: *u32,
+    };
+    const Velocity = struct {
+        pub const cid = 2;
+        x: u32,
+        y: u32,
+    };
+    const VelocityView = struct {
+        pub const Of = Velocity;
+        x: *u32,
+        y: *u32,
+    };
+    var archetype = try Archetype.init(alloc, .from(&[_]type{ Position, Velocity }));
+    defer archetype.deinit(alloc);
+
+    try archetype.append(alloc, @as(Entity, 0), .{ Position{ .x = 10, .y = 20 }, Velocity{ .x = 50, .y = 60 } });
+    try archetype.append(alloc, @as(Entity, 1), .{ Position{ .x = 100, .y = 200 }, Velocity{ .x = 110, .y = 120 } });
+
+    try testing.expectEqual(2, archetype.len());
+
+    {
+        const p = archetype.at(PositionView, 0);
+        try testing.expectEqual(10, p.x.*);
+        try testing.expectEqual(20, p.y.*);
+
+        const pa = archetype.atAuto(Position, 0);
+        try testing.expectEqual(10, pa.x.*);
+        try testing.expectEqual(20, pa.y.*);
+
+        const v = archetype.at(VelocityView, 0);
+        try testing.expectEqual(50, v.x.*);
+        try testing.expectEqual(60, v.y.*);
+
+        const va = archetype.atAuto(Velocity, 0);
+        try testing.expectEqual(50, va.x.*);
+        try testing.expectEqual(60, va.y.*);
+    }
+    {
+        const p = archetype.at(PositionView, 1);
+        try testing.expectEqual(100, p.x.*);
+        try testing.expectEqual(200, p.y.*);
+
+        const pa = archetype.atAuto(Position, 1);
+        try testing.expectEqual(100, pa.x.*);
+        try testing.expectEqual(200, pa.y.*);
+
+        const v = archetype.at(VelocityView, 1);
+        try testing.expectEqual(110, v.x.*);
+        try testing.expectEqual(120, v.y.*);
+
+        const va = archetype.atAuto(Velocity, 1);
+        try testing.expectEqual(110, va.x.*);
+        try testing.expectEqual(120, va.y.*);
+    }
 }
 
 test "Archetype.Iterator" {

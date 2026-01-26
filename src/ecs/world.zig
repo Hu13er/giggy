@@ -118,9 +118,9 @@ pub const World = struct {
         pub fn getAuto(self: *const QueryIterator, comptime T: type) util.ViewOf(T) {
             const ti = @typeInfo(T);
             if (ti != .@"struct")
-                @compileError("View.Of should be a struct");
+                @compileError("T should be a struct");
             if (!@hasDecl(T, "cid"))
-                @compileError("View.Of is not component");
+                @compileError("T should be a component");
 
             const found = for (self.cids) |cid| {
                 if (cid == T.cid) break true;
