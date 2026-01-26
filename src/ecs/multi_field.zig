@@ -14,10 +14,11 @@ pub const MultiField = struct {
             assert(@hasDecl(T, "cid"));
             const cid = T.cid;
             const l = ti.@"struct".fields.len;
-            var fs: [l]Field.Meta = undefined;
-            inline for (0..l) |idx| {
-                fs[idx] = .fromStruct(T, idx);
-            }
+            const fs = comptime blk: {
+                var tmp: [l]Field.Meta = undefined;
+                for (0..l) |i| tmp[i] = .fromStruct(T, i);
+                break :blk tmp;
+            };
             return .{ .cid = cid, .fields = &fs };
         }
 

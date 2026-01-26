@@ -48,23 +48,46 @@ pub const Archetype = struct {
                 hasher.update(mem.asBytes(&comp.cid));
             return hasher.final();
         }
+
+        pub fn hasComponents(self: *const Meta, comptime Comps: []const type) bool {
+            var cids: [Comps.len]u32 = undefined;
+            inline for (Comps, 0..) |C, i| {
+                if (!@hasDecl(C, "cid"))
+                    @compileError("Comps should be component");
+                cids[i] = C.cid;
+            }
+            return self.hasCIDs(cids[0..]);
+        }
+
+        pub fn hasCIDs(self: *const Meta, cids: []const u32) bool {
+            for (cids) |cid| {
+                const found = for (self.components) |comp| {
+                    if (comp.cid == cid) break true;
+                } else false;
+                if (!found) return false;
+            }
+            return true;
+        }
     };
 
     pub const Iterator = struct {
         archetype: *Self,
-        index: usize,
+        next_index: usize,
 
         pub fn next(self: *Iterator) bool {
-            if (self.index + 1 >= self.archetype.len()) return false;
-            self.index += 1;
+            if (self.next_index >= self.archetype.len()) return false;
+            self.next_index += 1;
             return true;
         }
 
         pub fn get(self: *const Iterator, comptime View: type) View {
+            assert(self.next_index > 0);
+
             const view_ti = @typeInfo(View);
             if (view_ti != .@"struct")
                 @compileError("View should be a struct");
             const view_fields = view_ti.@"struct".fields;
+
             if (!@hasDecl(View, "Of"))
                 @compileError("View should declare 'Of'");
             const Of = View.Of;
@@ -82,13 +105,15 @@ pub const Archetype = struct {
             inline for (view_fields) |f| {
                 const comp_idx = std.meta.fieldIndex(Of, f.name) orelse
                     @compileError("field " ++ f.name ++ " not found in component");
-                @field(out, f.name) = comp.fields[comp_idx].at(comp_fields[comp_idx].type, self.index);
+                @field(out, f.name) = comp.fields[comp_idx].at(comp_fields[comp_idx].type, self.next_index - 1);
             }
 
             return out;
         }
 
         pub fn getAuto(self: *const Iterator, comptime T: type) util.ViewOf(T) {
+            assert(self.next_index > 0);
+
             const ti = @typeInfo(T);
             if (ti != .@"struct")
                 @compileError("component should be a struct");
@@ -98,7 +123,7 @@ pub const Archetype = struct {
 
             var out: util.ViewOf(T) = undefined;
             inline for (ti.@"struct".fields, 0..) |f, i| {
-                @field(out, f.name) = comp.fields[i].at(f.type, self.index);
+                @field(out, f.name) = comp.fields[i].at(f.type, self.next_index - 1);
             }
 
             return out;
@@ -108,7 +133,7 @@ pub const Archetype = struct {
     pub fn iter(self: *Self) Iterator {
         return .{
             .archetype = self,
-            .index = 0,
+            .next_index = 0,
         };
     }
 
@@ -235,6 +260,29 @@ test "Archetype.Meta.from" {
     try testing.expectEqualDeep(expected, Archetype.Meta.from(&[_]type{ C1, C2 }));
 }
 
+test "Archetype.Meta.hasComponents" {
+    const C1 = struct {
+        pub const cid = 1;
+        x: u32,
+        y: u32,
+    };
+    const C2 = struct {
+        pub const cid = 2;
+        a: u8,
+        b: u32,
+        c: u16,
+    };
+    const meta1 = Archetype.Meta.from(&[_]type{C1});
+    try testing.expectEqual(true, meta1.hasComponents(&[_]type{C1}));
+    try testing.expectEqual(false, meta1.hasComponents(&[_]type{C2}));
+    try testing.expectEqual(false, meta1.hasComponents(&[_]type{ C1, C2 }));
+
+    const meta2 = Archetype.Meta.from(&[_]type{ C1, C2 });
+    try testing.expectEqual(true, meta2.hasComponents(&[_]type{C1}));
+    try testing.expectEqual(true, meta2.hasComponents(&[_]type{C2}));
+    try testing.expectEqual(true, meta2.hasComponents(&[_]type{ C1, C2 }));
+}
+
 test "Archetype.Meta.clone" {
     const alloc = testing.allocator;
     const C1 = struct {
@@ -285,6 +333,8 @@ test "Archetype.Iterator" {
     try testing.expectEqual(2, archetype.len());
 
     var it = archetype.iter();
+
+    try testing.expect(it.next() == true);
 
     const p1v = it.get(PositionView);
     try testing.expectEqual(0, p1v.x.*);
