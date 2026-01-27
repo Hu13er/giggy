@@ -2,7 +2,7 @@ const rl = @cImport({
     @cInclude("raylib.h");
 });
 
-const ecs = @import("ecs/ecs.zig");
+const ecs = @import("ecs.zig");
 
 pub fn main() anyerror!void {
     // Initialization
