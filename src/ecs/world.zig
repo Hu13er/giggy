@@ -54,6 +54,37 @@ pub const World = struct {
         return true;
     }
 
+    pub fn assign(self: *Self, entity: Entity, new_components: anytype) !void {
+        comptime {
+            if (!util.isTuple(new_components))
+                @compileError("expected tuple as argument");
+        }
+
+        const Ts = util.typesFromTuple(new_components);
+        const new_meta: Archetype.Meta = .from(Ts);
+        var src_arch = self.archetypeOf(entity).?;
+        const src_index = src_arch.indexOf(entity);
+        const src_meta = src_arch.meta;
+        const dst_meta = try src_meta.join(self.gpa, new_meta);
+        // var dst_arch = try self.getOrCreateArchetype(dst_meta);
+
+        var row = try self.gpa.alloc([][]const u8, dst_meta.components.len);
+        defer self.gpa.free(row);
+        for (dst_meta.components, 0..) |comp, i| {
+            if (src_arch.indexOfCID(comp.cid)) |comp_idx| {
+                const fields = src_arch
+                    .components[comp_idx]
+                    .fields;
+                row[i] = try self.gpa.alloc([]const u8, fields.len);
+                for (row[i], 0..) |_, j| {
+                    row[i][j] = fields.atRaw(src_index);
+                }
+            } else {
+                // TODO
+            }
+        }
+    }
+
     pub fn archetypeOf(self: *Self, entity: Entity) ?*Archetype {
         const hash = self.entity_archetype.get(entity) orelse return null;
         return self.archetypes.getPtr(hash);
