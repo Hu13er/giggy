@@ -35,7 +35,7 @@ This ECS uses:
 - [x] Entity despawning
 - [x] Component access via `world.get(View, Entity)`
 - [x] Query iteration across matching archetypes
-- [ ] Component `assign` & `unassign` with archetype migration
+- [X] Component `assign` & `unassign` with archetype migration
 
 ---
 
@@ -51,7 +51,7 @@ This ECS uses:
 
 ## Zen
 
-```bash
+```
 $ zig zen
 
  * Communicate intent precisely.

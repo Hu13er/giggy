@@ -44,13 +44,12 @@ pub const World = struct {
 
     pub fn despawn(self: *Self, entity: Entity) bool {
         const hash = self.entity_archetype.get(entity) orelse return false;
-        const arch_entry = self.archetypes.getEntry(hash).?;
-        const idx = arch_entry.value_ptr.indexOf(entity).?;
-        const entity_removed = arch_entry.value_ptr.remove(idx);
+        const arch = self.getArchetype(hash).?;
+        const index = arch.indexOf(entity).?;
+        const entity_removed = arch.remove(index);
         assert(entity == entity_removed);
         const entity_arch_index_removed = self.entity_archetype.swapRemove(entity);
         assert(entity_arch_index_removed);
-        _ = self.removeArchetypeIfEmpty(arch_entry);
         return true;
     }
 
@@ -69,9 +68,8 @@ pub const World = struct {
         const dst_hash = src_meta.hashJoined(&new_meta);
 
         const dst_arch = blk: {
-            if (self.getArchetype(dst_hash)) |arch| {
+            if (self.getArchetype(dst_hash)) |arch|
                 break :blk arch;
-            }
             const dst_meta = try src_meta.join(self.gpa, &new_meta);
             defer dst_meta.deinit(self.gpa);
             break :blk try self.createArchetype(dst_meta);
@@ -101,7 +99,60 @@ pub const World = struct {
             }
         }
 
-        _ = src_arch.remove(src_index);
+        try self.entity_archetype.put(entity, dst_hash);
+
+        const removed_entity = src_arch.remove(src_index);
+        assert(removed_entity == entity);
+    }
+
+    pub fn unassign(self: *Self, entity: Entity, rm_components: anytype) !void {
+        comptime {
+            if (!util.isTuple(rm_components))
+                @compileError("expected tuple as argument");
+        }
+        var src_arch = self.archetypeOf(entity).?;
+        const src_index = src_arch.indexOf(entity).?;
+        const src_meta = src_arch.meta;
+
+        const Ts = util.typesFromTuple(rm_components);
+        const rm_meta = comptime Archetype.Meta.from(Ts);
+        const dst_hash = src_meta.hashDejoined(&rm_meta);
+
+        const dst_arch = blk: {
+            if (self.getArchetype(dst_hash)) |arch|
+                break :blk arch;
+            const dst_meta = try src_meta.dejoin(self.gpa, &rm_meta);
+            defer dst_meta.deinit(self.gpa);
+            break :blk try self.createArchetype(dst_meta);
+        };
+        const dst_meta = dst_arch.meta;
+
+        assert(src_meta.components.len == dst_meta.components.len + Ts.len);
+
+        const before_size = dst_arch.len();
+        errdefer dst_arch.setComponentsSize(before_size);
+
+        const dst_index = try dst_arch.appendEntity(self.gpa, entity);
+        errdefer _ = dst_arch.removeEntity(dst_index);
+
+        var c: usize = 0;
+        for (dst_meta.components, 0..) |comp, dst_idx| {
+            c += 1;
+            const src_idx = src_arch.indexOfCID(comp.cid).?;
+            const fields_src = src_arch
+                .components[src_idx]
+                .fields;
+            const fields_dst = dst_arch
+                .components[dst_idx]
+                .fields;
+            for (fields_src, fields_dst) |src, *dst|
+                try dst.appendRaw(self.gpa, src.atRaw(src_index));
+        }
+
+        try self.entity_archetype.put(entity, dst_hash);
+
+        const removed_entity = src_arch.remove(src_index);
+        assert(removed_entity == entity);
     }
 
     pub fn archetypeOf(self: *Self, entity: Entity) ?*Archetype {
@@ -127,6 +178,12 @@ pub const World = struct {
 
     pub fn countArchetype(self: *const Self) usize {
         return self.archetypes.count();
+    }
+
+    pub fn freeEmptyArchetypes(self: *Self) void {
+        var it = self.archetypes.iterator();
+        while (it.next()) |entry|
+            _ = self.removeArchetypeIfEmpty(entry);
     }
 
     fn getOrCreateArchetype(self: *Self, meta: Archetype.Meta) !*Archetype {
@@ -306,7 +363,10 @@ test "World.{spawn,despawn,get}" {
         try testing.expectEqual(500, v.x.*);
         try testing.expectEqual(600, v.y.*);
     }
+
     try testing.expect(world.despawn(e1));
+    world.freeEmptyArchetypes();
+
     try testing.expectEqual(0, world.count());
     try testing.expectEqual(0, world.countArchetype());
     {
@@ -448,7 +508,7 @@ test "World.QueryIterator" {
     }
 }
 
-test "World.assign" {
+test "World.{assign,unassign}" {
     const Position = struct {
         pub const cid = 1;
         x: u32,
@@ -527,6 +587,36 @@ test "World.assign" {
             }
         }
         try testing.expectEqual(1, count);
+    }
+
+    try world.unassign(entities[1], .{Velocity});
+
+    {
+        // Position
+        var it = world.query(&[_]type{Position});
+        var count: usize = 0;
+        while (it.next()) |entity| {
+            count += 1;
+            const p = it.get(PositionView);
+            if (entity == entities[0]) {
+                try testing.expectEqual(0, p.x.*);
+                try testing.expectEqual(0, p.y.*);
+            } else if (entity == entities[1]) {
+                try testing.expectEqual(0, p.x.*);
+                try testing.expectEqual(0, p.y.*);
+            } else {
+                std.debug.print("{d}\n", .{entity});
+                unreachable;
+            }
+        }
+        try testing.expectEqual(2, count);
+    }
+    {
+        // Position + Velocity
+        var it = world.query(&[_]type{ Position, Velocity });
+        while (it.next()) |_| {
+            unreachable;
+        }
     }
 }
 

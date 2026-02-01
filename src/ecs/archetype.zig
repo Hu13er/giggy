@@ -73,6 +73,29 @@ pub const Archetype = struct {
             return .{ .components = try out.toOwnedSlice(gpa) };
         }
 
+        pub fn dejoin(self: *const Meta, gpa: mem.Allocator, with: *const Meta) !Meta {
+            var out = try std.ArrayList(MultiField.Meta).initCapacity(gpa, blk: {
+                if (self.components.len < with.components.len)
+                    break :blk self.components.len;
+                break :blk self.components.len - with.components.len;
+            });
+            errdefer out.deinit(gpa);
+            errdefer for (out.items) |item| {
+                item.deinit(gpa);
+            };
+
+            const j_comp = with.components;
+            var j: usize = 0;
+            for (self.components) |comp| {
+                while (j >= j_comp.len or j_comp[j].cid < comp.cid) : (j += 1) {}
+                if (j < j_comp.len and j_comp[j].cid == comp.cid)
+                    continue;
+                try out.append(gpa, try comp.clone(gpa));
+            }
+
+            return .{ .components = try out.toOwnedSlice(gpa) };
+        }
+
         pub fn clone(self: *const Meta, gpa: mem.Allocator) !Meta {
             return self.join(gpa, &.empty);
         }
@@ -117,6 +140,21 @@ pub const Archetype = struct {
                 if (last) |l| assert(l != to_add);
                 hasher.update(mem.asBytes(&to_add));
                 last = to_add;
+            }
+
+            return hasher.final();
+        }
+
+        pub fn hashDejoined(self: *const Meta, with: *const Meta) u64 {
+            var hasher = std.hash.Wyhash.init(0);
+
+            const j_comp = with.components;
+            var j: usize = 0;
+            for (self.components) |comp| {
+                while (j >= j_comp.len or j_comp[j].cid < comp.cid) : (j += 1) {}
+                if (j < j_comp.len and j_comp[j].cid == comp.cid)
+                    continue;
+                hasher.update(mem.asBytes(&comp.cid));
             }
 
             return hasher.final();
@@ -418,6 +456,54 @@ test "Archetype.Meta.hasComponents" {
     try testing.expectEqual(true, meta2.hasComponents(&[_]type{C1}));
     try testing.expectEqual(true, meta2.hasComponents(&[_]type{C2}));
     try testing.expectEqual(true, meta2.hasComponents(&[_]type{ C1, C2 }));
+}
+
+test "Archetype.Meta.join" {
+    const alloc = testing.allocator;
+
+    const C1 = struct {
+        pub const cid = 1;
+        x: u32,
+        y: u32,
+    };
+    const C2 = struct {
+        pub const cid = 2;
+        a: u8,
+        b: u32,
+        c: u16,
+    };
+
+    const meta1: Archetype.Meta = .from(&[_]type{C1});
+    const meta2: Archetype.Meta = .from(&[_]type{C2});
+    const meta_joined = try meta1.join(alloc, &meta2);
+    defer meta_joined.deinit(alloc);
+
+    const meta_expected: Archetype.Meta = .from(&[_]type{ C1, C2 });
+    try testing.expectEqualDeep(meta_expected, meta_joined);
+}
+
+test "Archetype.Meta.dejoin" {
+    const alloc = testing.allocator;
+
+    const C1 = struct {
+        pub const cid = 1;
+        x: u32,
+        y: u32,
+    };
+    const C2 = struct {
+        pub const cid = 2;
+        a: u8,
+        b: u32,
+        c: u16,
+    };
+
+    const meta1: Archetype.Meta = .from(&[_]type{ C1, C2 });
+    const meta2: Archetype.Meta = .from(&[_]type{C2});
+    const meta_dejoined = try meta1.dejoin(alloc, &meta2);
+    defer meta_dejoined.deinit(alloc);
+
+    const meta_expected: Archetype.Meta = .from(&[_]type{C1});
+    try testing.expectEqualDeep(meta_expected, meta_dejoined);
 }
 
 test "Archetype.Meta.clone" {
