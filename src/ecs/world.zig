@@ -25,11 +25,12 @@ pub const World = struct {
         self.entity_archetype.deinit();
     }
 
-    pub fn spawn(self: *Self, comptime Bundle: type, components: Bundle) !Entity {
-        comptime {
-            if (!util.isBundle(Bundle))
-                @compileError("expected Bundle as argument");
-        }
+    pub fn spawn(self: *Self, components: anytype) !Entity {
+        return self.spawnBundle(@TypeOf(components), components);
+    }
+
+    pub fn spawnBundle(self: *Self, comptime Bundle: type, components: Bundle) !Entity {
+        comptime if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
 
         const e = self.next_entity;
         const types = util.typesOfBundle(Bundle);
@@ -68,11 +69,12 @@ pub const World = struct {
         return true;
     }
 
-    pub fn assign(self: *Self, entity: Entity, comptime Bundle: type, new_components: Bundle) !void {
-        comptime {
-            if (!util.isBundle(Bundle))
-                @compileError("expected Bundle as argument");
-        }
+    pub fn assign(self: *Self, entity: Entity, new_components: anytype) !void {
+        try self.assignBundle(entity, @TypeOf(new_components), new_components);
+    }
+
+    pub fn assignBundle(self: *Self, entity: Entity, comptime Bundle: type, new_components: Bundle) !void {
+        comptime if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
 
         var src_arch = self.archetypeOf(entity).?;
         const src_index = src_arch.indexOf(entity).?;
@@ -165,10 +167,8 @@ pub const World = struct {
         assert(removed_entity == entity);
     }
 
-    pub fn unassign(self: *Self, entity: Entity, comptime Bundle: type) !void {
-        comptime {
-            if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
-        }
+    pub fn unassignBundle(self: *Self, entity: Entity, comptime Bundle: type) !void {
+        comptime if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
         var src_arch = self.archetypeOf(entity).?;
         const src_index = src_arch.indexOf(entity).?;
         const src_meta = src_arch.meta;
@@ -425,12 +425,11 @@ test "World.{spawn,despawn,get}" {
     var world = try World.init(alloc);
     defer world.deinit();
 
-    const B = struct { Position, Velocity };
-    const e1 = try world.spawn(B, .{
+    const e1 = try world.spawn(.{
         Position{ .x = 50, .y = 60 },
         Velocity{ .x = 500, .y = 600 },
     });
-    const e2 = try world.spawn(B, .{
+    const e2 = try world.spawn(.{
         Position{ .x = 100, .y = 200 },
         Velocity{ .x = 1000, .y = 2000 },
     });
@@ -518,30 +517,27 @@ test "World.QueryIterator" {
     var world = try World.init(alloc);
     defer world.deinit();
 
-    const P = struct { Position };
-    const V = struct { Velocity };
-    const PV = struct { Position, Velocity };
     var entities = [_]Entity{
         // 0
-        try world.spawn(PV, .{
+        try world.spawn(.{
             Position{ .x = 0, .y = 0 },
             Velocity{ .x = 100, .y = 150 },
         }),
         // 1
-        try world.spawn(P, .{
+        try world.spawn(.{
             Position{ .x = 10, .y = 10 },
         }),
         // 2
-        try world.spawn(PV, .{
+        try world.spawn(.{
             Position{ .x = 100, .y = 100 },
             Velocity{ .x = 500, .y = 550 },
         }),
         // 3
-        try world.spawn(P, .{
+        try world.spawn(.{
             Position{ .x = 1000, .y = 1000 },
         }),
         // 4
-        try world.spawn(V, .{
+        try world.spawn(.{
             Velocity{ .x = 1000, .y = 1500 },
         }),
     };
@@ -646,21 +642,18 @@ test "World.{assign,unassign}" {
     var world = try World.init(alloc);
     defer world.deinit();
 
-    const P = struct { Position };
-    const V = struct { Velocity };
-
     const entities = [_]u32{
         // 0
-        try world.spawn(P, .{
+        try world.spawn(.{
             Position{ .x = 0, .y = 0 },
         }),
         // 1
-        try world.spawn(P, .{
+        try world.spawn(.{
             Position{ .x = 0, .y = 0 },
         }),
     };
 
-    try world.assign(entities[1], V, .{
+    try world.assign(entities[1], .{
         Velocity{ .x = 100, .y = 100 },
     });
 
@@ -704,7 +697,7 @@ test "World.{assign,unassign}" {
         try testing.expectEqual(1, count);
     }
 
-    try world.unassign(entities[1], V);
+    try world.unassignBundle(entities[1], struct { Velocity });
 
     {
         // Position
@@ -775,7 +768,7 @@ test "World.{spawnBytes,assignBytes,unassignMeta}" {
     try testing.expectEqual(@as(u8, 33), vel_view.dx.*);
     try testing.expectEqual(@as(u32, 44), vel_view.dy.*);
 
-    const next = try world.spawn(P, .{
+    const next = try world.spawnBundle(P, .{
         Position{ .x = 1, .y = 2 },
     });
     try testing.expectEqual(@as(Entity, 8), next);

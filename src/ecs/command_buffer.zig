@@ -36,7 +36,11 @@ const CommandBuffer = struct {
         self.bytes.deinit(self.gpa);
     }
 
-    pub fn spawn(self: *Self, entity: Entity, comptime Bundle: type, components: Bundle) !void {
+    pub fn spawn(self: *Self, entity: Entity, components: anytype) !void {
+        try self.spawnBundle(entity, @TypeOf(components), components);
+    }
+
+    pub fn spawnBundle(self: *Self, entity: Entity, comptime Bundle: type, components: Bundle) !void {
         comptime if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
 
         const types = util.typesOfBundle(Bundle);
@@ -69,7 +73,11 @@ const CommandBuffer = struct {
         });
     }
 
-    pub fn assign(self: *Self, entity: Entity, comptime Bundle: type, components: Bundle) !void {
+    pub fn assign(self: *Self, entity: Entity, components: anytype) !void {
+        try self.assignBundle(entity, @TypeOf(components), components);
+    }
+
+    pub fn assignBundle(self: *Self, entity: Entity, comptime Bundle: type, components: Bundle) !void {
         comptime if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
 
         const types = util.typesOfBundle(Bundle);
@@ -92,7 +100,7 @@ const CommandBuffer = struct {
         });
     }
 
-    pub fn unassign(self: *Self, entity: Entity, comptime Bundle: type) !void {
+    pub fn unassignBundle(self: *Self, entity: Entity, comptime Bundle: type) !void {
         comptime if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
 
         const types = util.typesOfBundle(Bundle);
@@ -174,7 +182,7 @@ test "CommandBuffer.spawn stores bytes and command" {
         .pos = .{ .x = 0x11223344, .y = 0x5566 },
     };
 
-    try buffer.spawn(@as(Entity, 1), Bundle, bundle);
+    try buffer.spawnBundle(@as(Entity, 1), Bundle, bundle);
 
     try testing.expectEqual(@as(usize, 1), buffer.commands.items.len);
     const cmd = buffer.commands.items[0];
@@ -231,7 +239,7 @@ test "CommandBuffer.assign stores bytes and command" {
         .pos = .{ .x = 0x11223344, .y = 0x5566 },
     };
 
-    try buffer.assign(@as(Entity, 3), Bundle, bundle);
+    try buffer.assignBundle(@as(Entity, 3), Bundle, bundle);
 
     try testing.expectEqual(@as(usize, 1), buffer.commands.items.len);
     const cmd = buffer.commands.items[0];
@@ -263,7 +271,7 @@ test "CommandBuffer.unassign stores command" {
         pos: Position,
     };
 
-    try buffer.unassign(@as(Entity, 9), Bundle);
+    try buffer.unassignBundle(@as(Entity, 9), Bundle);
 
     try testing.expectEqual(@as(usize, 1), buffer.commands.items.len);
     const cmd = buffer.commands.items[0];
@@ -296,7 +304,7 @@ test "CommandBuffer.flush applies to World" {
     const V = struct { vel: Velocity };
 
     const e = w.reserveEntity();
-    try buffer.spawn(e, P, .{ .pos = .{ .x = 7, .y = 9 } });
+    try buffer.spawnBundle(e, P, .{ .pos = .{ .x = 7, .y = 9 } });
     try buffer.flush(&w);
 
     const pos_view = w.getAuto(Position, e).?;
@@ -307,14 +315,14 @@ test "CommandBuffer.flush applies to World" {
         try testing.expect(!arch.meta.hasComponents(&[_]type{Velocity}));
     }
 
-    try buffer.assign(e, V, .{ .vel = .{ .dx = 3, .dy = 11 } });
+    try buffer.assignBundle(e, V, .{ .vel = .{ .dx = 3, .dy = 11 } });
     try buffer.flush(&w);
 
     const vel_view = w.getAuto(Velocity, e).?;
     try testing.expectEqual(@as(u8, 3), vel_view.dx.*);
     try testing.expectEqual(@as(u32, 11), vel_view.dy.*);
 
-    try buffer.unassign(e, P);
+    try buffer.unassignBundle(e, P);
     try buffer.flush(&w);
     {
         const arch = w.archetypeOf(e).?;
