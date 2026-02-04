@@ -1,5 +1,5 @@
 pub const Field = struct {
-    meta: Meta,
+    meta: *const Meta,
     buffer: Buffer,
 
     const Self = @This();
@@ -13,29 +13,35 @@ pub const Field = struct {
         size: usize,
         alignment: usize,
 
-        pub inline fn fromScalar(comptime T: type) Meta {
-            return .{
-                .index = 0,
-                .name = null,
-                .size = @sizeOf(T),
-                .alignment = @alignOf(T),
-            };
+        pub inline fn fromScalar(comptime T: type) *const Meta {
+            return &struct {
+                pub const v: Meta = .{
+                    .index = 0,
+                    .name = null,
+                    .size = @sizeOf(T),
+                    .alignment = @alignOf(T),
+                };
+            }.v;
         }
 
-        pub inline fn fromStruct(comptime T: type, comptime index: usize) Meta {
-            const ti = @typeInfo(T);
-            assert(ti == .@"struct");
-            const field = ti.@"struct".fields[index];
-            return .{
-                .index = index,
-                .name = field.name,
-                .size = @sizeOf(field.type),
-                .alignment = @alignOf(field.type),
-            };
+        pub inline fn fromStruct(comptime T: type, comptime index: usize) *const Meta {
+            return &struct {
+                pub const v: Meta = blk: {
+                    const ti = @typeInfo(T);
+                    assert(ti == .@"struct");
+                    const field = ti.@"struct".fields[index];
+                    break :blk .{
+                        .index = index,
+                        .name = field.name,
+                        .size = @sizeOf(field.type),
+                        .alignment = @alignOf(field.type),
+                    };
+                };
+            }.v;
         }
     };
 
-    pub fn init(gpa: mem.Allocator, meta: Meta) !Self {
+    pub fn init(gpa: mem.Allocator, meta: *const Meta) !Self {
         assert(meta.alignment <= max_alignment.toByteUnits());
         return .{
             .meta = meta,
@@ -105,7 +111,7 @@ test "Field.Meta.fromScalar" {
             .size = 1,
             .alignment = 1,
         },
-        Field.Meta.fromScalar(u8),
+        Field.Meta.fromScalar(u8).*,
     );
     try testing.expectEqualDeep(
         Field.Meta{
@@ -114,7 +120,7 @@ test "Field.Meta.fromScalar" {
             .size = 2,
             .alignment = 2,
         },
-        Field.Meta.fromScalar(u16),
+        Field.Meta.fromScalar(u16).*,
     );
 }
 
@@ -130,7 +136,7 @@ test "Field.Meta.fromStruct" {
             .size = 1,
             .alignment = 1,
         },
-        Field.Meta.fromStruct(T, 0),
+        Field.Meta.fromStruct(T, 0).*,
     );
     try testing.expectEqualDeep(
         Field.Meta{
@@ -139,19 +145,19 @@ test "Field.Meta.fromStruct" {
             .size = 2,
             .alignment = 2,
         },
-        Field.Meta.fromStruct(T, 1),
+        Field.Meta.fromStruct(T, 1).*,
     );
 }
 
 test "Field.appendBytes" {
     const alloc = testing.allocator;
 
-    var f1 = try Field.init(alloc, .fromScalar(u8));
+    var f1 = try Field.init(alloc, Field.Meta.fromScalar(u8));
     defer f1.deinit(alloc);
     try f1.appendBytes(alloc, &[_]u8{0x88});
     try testing.expectEqual(@as(u8, 0x88), mem.bytesAsValue(u8, f1.atRaw(0)).*);
 
-    var f2 = try Field.init(alloc, .fromScalar(u32));
+    var f2 = try Field.init(alloc, Field.Meta.fromScalar(u32));
     defer f2.deinit(alloc);
     const test_cases = [_]u32{
         0x00000000,
@@ -171,12 +177,12 @@ test "Field.appendBytes" {
 test "Field.append" {
     const alloc = testing.allocator;
 
-    var f1 = try Field.init(alloc, .fromScalar(u8));
+    var f1 = try Field.init(alloc, Field.Meta.fromScalar(u8));
     defer f1.deinit(alloc);
     try f1.append(alloc, @as(u8, 0x88));
     try testing.expectEqual(@as(u8, 0x88), mem.bytesAsValue(u8, f1.atRaw(0)).*);
 
-    var f2 = try Field.init(alloc, .fromScalar(u32));
+    var f2 = try Field.init(alloc, Field.Meta.fromScalar(u32));
     defer f2.deinit(alloc);
     const test_cases = [_]u32{
         0x00000000,

@@ -1,7 +1,7 @@
 pub const Entity = u32;
 
 pub const Archetype = struct {
-    meta: Meta,
+    meta: OwnedMeta,
     entities: EntityList,
     entities_index: EntityIndexHashmap,
     components: []MultiField,
@@ -11,229 +11,242 @@ pub const Archetype = struct {
     const EntityList = std.ArrayList(Entity);
     const EntityIndexHashmap = std.AutoHashMap(Entity, usize);
 
-    pub const Meta = struct {
-        components: []const MultiField.Meta,
+    pub const StaticMeta = Meta(.static);
+    pub const OwnedMeta = Meta(.owned);
 
-        pub const empty = from(&[_]type{});
+    pub const MetaKind = enum { static, owned };
 
-        pub inline fn from(comptime Ts: []const type) Meta {
-            if (Ts.len == 0)
-                return .{ .components = &[0]MultiField.Meta{} };
-            const metas = comptime blk: {
-                var tmp: [Ts.len]MultiField.Meta = undefined;
-                for (Ts, 0..) |T, i| {
-                    tmp[i] = MultiField.Meta.from(T);
-                }
-                std.sort.insertion(MultiField.Meta, &tmp, {}, struct {
-                    fn lessThan(_: void, a: MultiField.Meta, b: MultiField.Meta) bool {
-                        return a.cid < b.cid;
+    pub fn Meta(comptime kind: MetaKind) type {
+        return struct {
+            components: []const *const MultiField.Meta,
+
+            const MetaSelf = @This();
+
+            pub const empty: MetaSelf = if (kind == .static)
+                .{ .components = &[_]*const MultiField.Meta{} }
+            else
+                @compileError("Meta(.owned) has no empty constant");
+
+            pub inline fn from(comptime Ts: []const type) MetaSelf {
+                comptime if (kind != .static)
+                    @compileError("Meta(.owned) cannot be constructed from types");
+                if (Ts.len == 0)
+                    return empty;
+                const metas = comptime blk: {
+                    var tmp: [Ts.len]*const MultiField.Meta = undefined;
+                    for (Ts, 0..) |T, i| {
+                        tmp[i] = MultiField.Meta.from(T);
                     }
-                }.lessThan);
+                    std.sort.insertion(*const MultiField.Meta, &tmp, {}, struct {
+                        fn lessThan(_: void, a: *const MultiField.Meta, b: *const MultiField.Meta) bool {
+                            return a.cid < b.cid;
+                        }
+                    }.lessThan);
 
-                break :blk tmp;
-            };
-            inline for (1..metas.len) |i| {
-                assert(metas[i - 1].cid != metas[i].cid);
-            }
-            return .{ .components = &metas };
-        }
-
-        pub fn join(self: *const Meta, gpa: mem.Allocator, with: *const Meta) !Meta {
-            var out = try std.ArrayList(MultiField.Meta)
-                .initCapacity(gpa, self.components.len + with.components.len);
-            errdefer out.deinit(gpa);
-            errdefer for (out.items) |item| {
-                item.deinit(gpa);
-            };
-            const i_comp = self.components;
-            const j_comp = with.components;
-            var i: usize = 0;
-            var j: usize = 0;
-            while (true) {
-                const plus_i = i < i_comp.len and
-                    (j >= j_comp.len or i_comp[i].cid < j_comp[j].cid);
-                const plus_j = j < j_comp.len and
-                    (i >= i_comp.len or j_comp[j].cid <= i_comp[i].cid);
-                var to_add: MultiField.Meta = undefined;
-                if (plus_i) {
-                    to_add = i_comp[i];
-                    i += 1;
-                } else if (plus_j) {
-                    to_add = j_comp[j];
-                    j += 1;
-                } else {
-                    break;
+                    break :blk tmp;
+                };
+                inline for (1..metas.len) |i| {
+                    assert(metas[i - 1].cid != metas[i].cid);
                 }
-                if (out.getLastOrNull()) |last| {
-                    if (last.cid == to_add.cid) continue;
-                    assert(last.cid < to_add.cid);
-                }
-                try out.append(gpa, try to_add.clone(gpa));
-            }
-            return .{ .components = try out.toOwnedSlice(gpa) };
-        }
-
-        pub fn dejoin(self: *const Meta, gpa: mem.Allocator, with: *const Meta) !Meta {
-            var out = try std.ArrayList(MultiField.Meta).initCapacity(gpa, blk: {
-                if (self.components.len < with.components.len)
-                    break :blk self.components.len;
-                break :blk self.components.len - with.components.len;
-            });
-            errdefer out.deinit(gpa);
-            errdefer for (out.items) |item| {
-                item.deinit(gpa);
-            };
-
-            const j_comp = with.components;
-            var j: usize = 0;
-            for (self.components) |comp| {
-                while (j < j_comp.len and j_comp[j].cid < comp.cid) : (j += 1) {}
-                if (j < j_comp.len and j_comp[j].cid == comp.cid)
-                    continue;
-                try out.append(gpa, try comp.clone(gpa));
+                return .{ .components = &metas };
             }
 
-            return .{ .components = try out.toOwnedSlice(gpa) };
-        }
-
-        pub fn clone(self: *const Meta, gpa: mem.Allocator) !Meta {
-            return self.join(gpa, &.empty);
-        }
-
-        pub fn deinit(self: *const Meta, gpa: mem.Allocator) void {
-            for (self.components) |comp|
-                comp.deinit(gpa);
-            gpa.free(self.components);
-        }
-
-        pub fn hash(self: *const Meta) u64 {
-            var hasher = std.hash.Wyhash.init(0);
-            for (self.components) |comp|
-                hasher.update(mem.asBytes(&comp.cid));
-            return hasher.final();
-        }
-
-        pub fn hashJoined(self: *const Meta, with: *const Meta) u64 {
-            var hasher = std.hash.Wyhash.init(0);
-
-            const i_comp = self.components;
-            const j_comp = with.components;
-            var i: usize = 0;
-            var j: usize = 0;
-            var last: ?u32 = null;
-
-            while (true) {
-                const plus_i = i < i_comp.len and
-                    (j >= j_comp.len or i_comp[i].cid < j_comp[j].cid);
-                const plus_j = j < j_comp.len and
-                    (i >= i_comp.len or j_comp[j].cid <= i_comp[i].cid);
-                var to_add: u32 = undefined;
-                if (plus_i) {
-                    to_add = i_comp[i].cid;
-                    i += 1;
-                } else if (plus_j) {
-                    to_add = j_comp[j].cid;
-                    j += 1;
-                } else {
-                    break;
-                }
-                if (last) |l| assert(l != to_add);
-                hasher.update(mem.asBytes(&to_add));
-                last = to_add;
-            }
-
-            return hasher.final();
-        }
-
-        pub fn hashDejoined(self: *const Meta, with: *const Meta) u64 {
-            var hasher = std.hash.Wyhash.init(0);
-
-            const j_comp = with.components;
-            var j: usize = 0;
-            for (self.components) |comp| {
-                while (j < j_comp.len and j_comp[j].cid < comp.cid) : (j += 1) {}
-                if (j < j_comp.len and j_comp[j].cid == comp.cid)
-                    continue;
-                hasher.update(mem.asBytes(&comp.cid));
-            }
-
-            return hasher.final();
-        }
-
-        pub inline fn extractBytes(self: *const Meta, comptime Bundle: type, value: *const Bundle, out: []u8) void {
-            comptime {
-                if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
-            }
-            assert(out.len == self.size());
-
-            const ti = @typeInfo(Bundle);
-            const fields = ti.@"struct".fields;
-
-            const Entry = struct {
-                cid: u32,
-                offset: usize,
-                T: type,
-            };
-
-            const entries = comptime blk: {
-                var tmp: [fields.len]Entry = undefined;
-                for (fields, 0..) |f, i| {
-                    const T = f.type;
-                    if (!@hasDecl(T, "cid"))
-                        @compileError("Bundle fields should be components");
-                    tmp[i] = .{
-                        .cid = T.cid,
-                        .offset = @offsetOf(Bundle, f.name),
-                        .T = T,
-                    };
-                }
-                break :blk tmp;
-            };
-
-            var idx: usize = 0;
-            for (self.components) |comp| {
-                const s = comp.size();
-                const base_ptr = @intFromPtr(value);
-                inline for (entries) |e| {
-                    if (e.cid == comp.cid) {
-                        const field_ptr = @as(*e.T, @ptrFromInt(base_ptr + e.offset));
-                        comp.extractBytes(e.T, field_ptr, out[idx .. idx + s]);
+            pub fn join(self: *const MetaSelf, gpa: mem.Allocator, with: StaticMeta) !OwnedMeta {
+                var out = try std.ArrayList(*const MultiField.Meta)
+                    .initCapacity(gpa, self.components.len + with.components.len);
+                errdefer out.deinit(gpa);
+                const i_comp = self.components;
+                const j_comp = with.components;
+                var i: usize = 0;
+                var j: usize = 0;
+                while (true) {
+                    const plus_i = i < i_comp.len and
+                        (j >= j_comp.len or i_comp[i].cid < j_comp[j].cid);
+                    const plus_j = j < j_comp.len and
+                        (i >= i_comp.len or j_comp[j].cid <= i_comp[i].cid);
+                    var to_add: *const MultiField.Meta = undefined;
+                    if (plus_i) {
+                        to_add = i_comp[i];
+                        i += 1;
+                    } else if (plus_j) {
+                        to_add = j_comp[j];
+                        j += 1;
+                    } else {
                         break;
                     }
-                } else {
-                    unreachable;
+                    if (out.getLastOrNull()) |last| {
+                        if (last.cid == to_add.cid) continue;
+                        assert(last.cid < to_add.cid);
+                    }
+                    try out.append(gpa, to_add);
                 }
-                idx += s;
+                return .{ .components = try out.toOwnedSlice(gpa) };
             }
-            assert(idx == self.size());
-        }
 
-        pub fn hasComponents(self: *const Meta, comptime Comps: []const type) bool {
-            var cids: [Comps.len]u32 = undefined;
-            inline for (Comps, 0..) |C, i| {
-                if (!@hasDecl(C, "cid"))
-                    @compileError("Comps should be component");
-                cids[i] = C.cid;
+            pub fn dejoin(self: *const MetaSelf, gpa: mem.Allocator, with: StaticMeta) !OwnedMeta {
+                var out = try std.ArrayList(*const MultiField.Meta).initCapacity(gpa, blk: {
+                    if (self.components.len < with.components.len)
+                        break :blk self.components.len;
+                    break :blk self.components.len - with.components.len;
+                });
+                errdefer out.deinit(gpa);
+
+                const j_comp = with.components;
+                var j: usize = 0;
+                for (self.components) |comp| {
+                    while (j < j_comp.len and j_comp[j].cid < comp.cid) : (j += 1) {}
+                    if (j < j_comp.len and j_comp[j].cid == comp.cid)
+                        continue;
+                    try out.append(gpa, comp);
+                }
+
+                return .{ .components = try out.toOwnedSlice(gpa) };
             }
-            return self.hasCIDs(cids[0..]);
-        }
 
-        pub fn hasCIDs(self: *const Meta, cids: []const u32) bool {
-            for (cids) |cid| {
-                const found = for (self.components) |comp| {
-                    if (comp.cid == cid) break true;
-                } else false;
-                if (!found) return false;
+            pub fn copy(self: *const MetaSelf, gpa: mem.Allocator) !OwnedMeta {
+                const comps = try gpa.alloc(*const MultiField.Meta, self.components.len);
+                @memcpy(comps, self.components);
+                return .{ .components = comps };
             }
-            return true;
-        }
 
-        pub fn size(self: *const Meta) usize {
-            var sum: usize = 0;
-            for (self.components) |comp| sum += comp.size();
-            return sum;
-        }
-    };
+            pub inline fn view(self: *const MetaSelf) StaticMeta {
+                return .{ .components = self.components };
+            }
+
+            pub fn deinit(self: *const MetaSelf, gpa: mem.Allocator) void {
+                comptime if (kind != .owned)
+                    @compileError("Meta(.static) cannot be deinitialized");
+                gpa.free(self.components);
+            }
+
+            pub fn hash(self: *const MetaSelf) u64 {
+                var hasher = std.hash.Wyhash.init(0);
+                for (self.components) |comp|
+                    hasher.update(mem.asBytes(&comp.cid));
+                return hasher.final();
+            }
+
+            pub fn hashJoined(self: *const MetaSelf, with: StaticMeta) u64 {
+                var hasher = std.hash.Wyhash.init(0);
+
+                const i_comp = self.components;
+                const j_comp = with.components;
+                var i: usize = 0;
+                var j: usize = 0;
+                var last: ?u32 = null;
+
+                while (true) {
+                    const plus_i = i < i_comp.len and
+                        (j >= j_comp.len or i_comp[i].cid < j_comp[j].cid);
+                    const plus_j = j < j_comp.len and
+                        (i >= i_comp.len or j_comp[j].cid <= i_comp[i].cid);
+                    var to_add: u32 = undefined;
+                    if (plus_i) {
+                        to_add = i_comp[i].cid;
+                        i += 1;
+                    } else if (plus_j) {
+                        to_add = j_comp[j].cid;
+                        j += 1;
+                    } else {
+                        break;
+                    }
+                    if (last) |l| assert(l != to_add);
+                    hasher.update(mem.asBytes(&to_add));
+                    last = to_add;
+                }
+
+                return hasher.final();
+            }
+
+            pub fn hashDejoined(self: *const MetaSelf, with: StaticMeta) u64 {
+                var hasher = std.hash.Wyhash.init(0);
+
+                const j_comp = with.components;
+                var j: usize = 0;
+                for (self.components) |comp| {
+                    while (j < j_comp.len and j_comp[j].cid < comp.cid) : (j += 1) {}
+                    if (j < j_comp.len and j_comp[j].cid == comp.cid)
+                        continue;
+                    hasher.update(mem.asBytes(&comp.cid));
+                }
+
+                return hasher.final();
+            }
+
+            pub inline fn extractBytes(self: *const MetaSelf, comptime Bundle: type, value: *const Bundle, out: []u8) void {
+                comptime if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
+
+                assert(out.len == self.size());
+
+                const ti = @typeInfo(Bundle);
+                const fields = ti.@"struct".fields;
+
+                const Entry = struct {
+                    cid: u32,
+                    offset: usize,
+                    T: type,
+                };
+
+                const entries = comptime blk: {
+                    var tmp: [fields.len]Entry = undefined;
+                    for (fields, 0..) |f, i| {
+                        const T = f.type;
+                        if (!@hasDecl(T, "cid"))
+                            @compileError("Bundle fields should be components");
+                        tmp[i] = .{
+                            .cid = T.cid,
+                            .offset = @offsetOf(Bundle, f.name),
+                            .T = T,
+                        };
+                    }
+                    break :blk tmp;
+                };
+
+                var idx: usize = 0;
+                for (self.components) |comp| {
+                    const s = comp.size();
+                    const base_ptr = @intFromPtr(value);
+                    inline for (entries) |e| {
+                        if (e.cid == comp.cid) {
+                            const field_ptr = @as(*e.T, @ptrFromInt(base_ptr + e.offset));
+                            comp.extractBytes(e.T, field_ptr, out[idx .. idx + s]);
+                            break;
+                        }
+                    } else {
+                        unreachable;
+                    }
+                    idx += s;
+                }
+                assert(idx == self.size());
+            }
+
+            pub fn hasComponents(self: *const MetaSelf, comptime Comps: []const type) bool {
+                var cids: [Comps.len]u32 = undefined;
+                inline for (Comps, 0..) |C, i| {
+                    if (!@hasDecl(C, "cid"))
+                        @compileError("Comps should be component");
+                    cids[i] = C.cid;
+                }
+                return self.hasCIDs(cids[0..]);
+            }
+
+            pub fn hasCIDs(self: *const MetaSelf, cids: []const u32) bool {
+                for (cids) |cid| {
+                    const found = for (self.components) |comp| {
+                        if (comp.cid == cid) break true;
+                    } else false;
+                    if (!found) return false;
+                }
+                return true;
+            }
+
+            pub fn size(self: *const MetaSelf) usize {
+                var sum: usize = 0;
+                for (self.components) |comp| sum += comp.size();
+                return sum;
+            }
+        };
+    }
 
     pub const Iterator = struct {
         archetype: *Self,
@@ -264,7 +277,12 @@ pub const Archetype = struct {
         };
     }
 
-    pub fn init(gpa: mem.Allocator, meta: Meta) !Self {
+    pub fn init(gpa: mem.Allocator, meta: StaticMeta) !Self {
+        const owned = try meta.copy(gpa);
+        return initOwned(gpa, owned);
+    }
+
+    pub fn initOwned(gpa: mem.Allocator, meta: OwnedMeta) !Self {
         var comps = try gpa.alloc(MultiField, meta.components.len);
         errdefer gpa.free(comps);
 
@@ -277,7 +295,7 @@ pub const Archetype = struct {
         }
 
         return .{
-            .meta = try meta.clone(gpa),
+            .meta = meta,
             .entities = try EntityList.initCapacity(gpa, 1),
             .entities_index = EntityIndexHashmap.init(gpa),
             .components = comps,
@@ -336,12 +354,12 @@ pub const Archetype = struct {
 
     pub fn appendBytes(self: *Self, gpa: mem.Allocator, entity: Entity, bytes: []const u8) !void {
         const before_size = self.len();
-        try self.appendPartialBytes(gpa, &self.meta, bytes);
+        try self.appendPartialBytes(gpa, self.meta.view(), bytes);
         errdefer self.setComponentsSize(before_size);
         _ = try self.appendEntity(gpa, entity);
     }
 
-    pub fn appendPartialBytes(self: *Self, gpa: mem.Allocator, meta: *const Meta, bytes: []const u8) !void {
+    pub fn appendPartialBytes(self: *Self, gpa: mem.Allocator, meta: StaticMeta, bytes: []const u8) !void {
         const expected_len = meta.size();
         assert(bytes.len == expected_len);
 
@@ -472,8 +490,8 @@ pub const Archetype = struct {
 };
 
 test "Archetype.Meta.from" {
-    const empty = Archetype.Meta.from(&[_]type{});
-    try testing.expectEqualDeep(empty, Archetype.Meta.empty);
+    const empty = Archetype.StaticMeta.from(&[_]type{});
+    try testing.expectEqualDeep(empty, Archetype.StaticMeta.empty);
     try testing.expectEqual(0, empty.components.len);
 
     const C1 = struct {
@@ -487,24 +505,11 @@ test "Archetype.Meta.from" {
         b: u32,
         c: u16,
     };
-    const expected = Archetype.Meta{ .components = ([_]MultiField.Meta{
-        MultiField.Meta{
-            .cid = 1,
-            .fields = ([_]Field.Meta{
-                Field.Meta{ .index = 0, .name = "x", .size = 4, .alignment = 4 },
-                Field.Meta{ .index = 1, .name = "y", .size = 4, .alignment = 4 },
-            })[0..],
-        },
-        MultiField.Meta{
-            .cid = 2,
-            .fields = ([_]Field.Meta{
-                Field.Meta{ .index = 0, .name = "a", .size = 1, .alignment = 1 },
-                Field.Meta{ .index = 1, .name = "b", .size = 4, .alignment = 4 },
-                Field.Meta{ .index = 2, .name = "c", .size = 2, .alignment = 2 },
-            })[0..],
-        },
-    })[0..] };
-    try testing.expectEqualDeep(expected, Archetype.Meta.from(&[_]type{ C1, C2 }));
+    const expected = Archetype.StaticMeta{ .components = &[_]*const MultiField.Meta{
+        MultiField.Meta.from(C1),
+        MultiField.Meta.from(C2),
+    } };
+    try testing.expectEqualDeep(expected, Archetype.StaticMeta.from(&[_]type{ C1, C2 }));
 }
 
 test "Archetype.Meta.hasComponents" {
@@ -520,17 +525,17 @@ test "Archetype.Meta.hasComponents" {
         c: u16,
     };
 
-    const empty = Archetype.Meta.empty;
+    const empty = Archetype.StaticMeta.empty;
     try testing.expectEqual(false, empty.hasComponents(&[_]type{C1}));
     try testing.expectEqual(false, empty.hasComponents(&[_]type{C2}));
     try testing.expectEqual(false, empty.hasComponents(&[_]type{ C1, C2 }));
 
-    const meta1 = Archetype.Meta.from(&[_]type{C1});
+    const meta1 = Archetype.StaticMeta.from(&[_]type{C1});
     try testing.expectEqual(true, meta1.hasComponents(&[_]type{C1}));
     try testing.expectEqual(false, meta1.hasComponents(&[_]type{C2}));
     try testing.expectEqual(false, meta1.hasComponents(&[_]type{ C1, C2 }));
 
-    const meta2 = Archetype.Meta.from(&[_]type{ C1, C2 });
+    const meta2 = Archetype.StaticMeta.from(&[_]type{ C1, C2 });
     try testing.expectEqual(true, meta2.hasComponents(&[_]type{C1}));
     try testing.expectEqual(true, meta2.hasComponents(&[_]type{C2}));
     try testing.expectEqual(true, meta2.hasComponents(&[_]type{ C1, C2 }));
@@ -551,13 +556,13 @@ test "Archetype.Meta.join" {
         c: u16,
     };
 
-    const meta1: Archetype.Meta = .from(&[_]type{C1});
-    const meta2: Archetype.Meta = .from(&[_]type{C2});
-    const meta_joined = try meta1.join(alloc, &meta2);
+    const meta1: Archetype.StaticMeta = .from(&[_]type{C1});
+    const meta2: Archetype.StaticMeta = .from(&[_]type{C2});
+    const meta_joined = try meta1.join(alloc, meta2);
     defer meta_joined.deinit(alloc);
 
-    const meta_expected: Archetype.Meta = .from(&[_]type{ C1, C2 });
-    try testing.expectEqualDeep(meta_expected, meta_joined);
+    const meta_expected: Archetype.StaticMeta = .from(&[_]type{ C1, C2 });
+    try testing.expectEqualDeep(meta_expected, meta_joined.view());
 }
 
 test "Archetype.Meta.dejoin" {
@@ -575,22 +580,22 @@ test "Archetype.Meta.dejoin" {
         c: u16,
     };
 
-    const meta1: Archetype.Meta = .from(&[_]type{ C1, C2 });
-    const meta2: Archetype.Meta = .from(&[_]type{C2});
-    const meta_dejoined = try meta1.dejoin(alloc, &meta2);
+    const meta1: Archetype.StaticMeta = .from(&[_]type{ C1, C2 });
+    const meta2: Archetype.StaticMeta = .from(&[_]type{C2});
+    const meta_dejoined = try meta1.dejoin(alloc, meta2);
     defer meta_dejoined.deinit(alloc);
 
-    const meta_expected: Archetype.Meta = .from(&[_]type{C1});
-    try testing.expectEqualDeep(meta_expected, meta_dejoined);
+    const meta_expected: Archetype.StaticMeta = .from(&[_]type{C1});
+    try testing.expectEqualDeep(meta_expected, meta_dejoined.view());
 }
 
-test "Archetype.Meta.clone" {
+test "Archetype.Meta.copy" {
     const alloc = testing.allocator;
 
-    const empty = Archetype.Meta.empty;
-    const empty_clone = try empty.clone(alloc);
-    defer empty_clone.deinit(alloc);
-    try testing.expectEqualDeep(empty, empty_clone);
+    const empty = Archetype.StaticMeta.empty;
+    const empty_copy = try empty.copy(alloc);
+    defer empty_copy.deinit(alloc);
+    try testing.expectEqualDeep(empty, empty_copy.view());
 
     const C1 = struct {
         pub const cid = 1;
@@ -603,10 +608,10 @@ test "Archetype.Meta.clone" {
         b: u32,
         c: u16,
     };
-    const meta = Archetype.Meta.from(&[_]type{ C1, C2 });
-    const meta_clone = try meta.clone(alloc);
-    defer meta_clone.deinit(alloc);
-    try testing.expectEqualDeep(meta, meta_clone);
+    const meta = Archetype.StaticMeta.from(&[_]type{ C1, C2 });
+    const meta_copy = try meta.copy(alloc);
+    defer meta_copy.deinit(alloc);
+    try testing.expectEqualDeep(meta, meta_copy.view());
 }
 
 test "Archetype.Meta.extractBytes" {
@@ -625,7 +630,7 @@ test "Archetype.Meta.extractBytes" {
         pos: Position,
     };
 
-    const meta: Archetype.Meta = comptime .from(&[_]type{ Velocity, Position });
+    const meta: Archetype.StaticMeta = comptime .from(&[_]type{ Velocity, Position });
     try testing.expectEqual(@as(usize, 11), meta.size());
 
     const bundle = Bundle{
@@ -695,7 +700,7 @@ test "Archetype.appendBytes" {
         vel: Velocity,
     };
 
-    const meta: Archetype.Meta = comptime .from(&[_]type{ Position, Velocity });
+    const meta: Archetype.StaticMeta = comptime .from(&[_]type{ Position, Velocity });
     var archetype = try Archetype.init(alloc, meta);
     defer archetype.deinit(alloc);
 
@@ -739,7 +744,7 @@ test "Archetype.at" {
         x: *u32,
         y: *u32,
     };
-    var archetype = try Archetype.init(alloc, .from(&[_]type{ Position, Velocity }));
+    var archetype = try Archetype.init(alloc, Archetype.StaticMeta.from(&[_]type{ Position, Velocity }));
     defer archetype.deinit(alloc);
 
     try archetype.append(alloc, @as(Entity, 0), .{ Position{ .x = 10, .y = 20 }, Velocity{ .x = 50, .y = 60 } });
@@ -805,7 +810,7 @@ test "Archetype.Iterator" {
         x: *u32,
         y: *u32,
     };
-    var archetype = try Archetype.init(alloc, .from(&[_]type{ Position, Velocity }));
+    var archetype = try Archetype.init(alloc, Archetype.StaticMeta.from(&[_]type{ Position, Velocity }));
     defer archetype.deinit(alloc);
 
     try archetype.append(alloc, @as(Entity, 0), .{ Position{ .x = 0, .y = 0 }, Velocity{ .x = 1, .y = 1 } });

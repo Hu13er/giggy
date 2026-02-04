@@ -18,7 +18,7 @@ const CommandBuffer = struct {
     const Command = struct {
         tag: Tag,
         entity: Entity,
-        meta: ?*const Archetype.Meta,
+        meta: ?*const Archetype.StaticMeta,
         offset: usize,
         size: usize,
     };
@@ -37,11 +37,10 @@ const CommandBuffer = struct {
     }
 
     pub fn spawn(self: *Self, entity: Entity, comptime Bundle: type, components: Bundle) !void {
-        comptime {
-            if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
-        }
+        comptime if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
+
         const types = util.typesOfBundle(Bundle);
-        const meta: Archetype.Meta = comptime .from(types);
+        const meta: Archetype.StaticMeta = comptime .from(types);
 
         var out: [meta.size()]u8 = undefined;
         meta.extractBytes(Bundle, &components, out[0..]);
@@ -71,11 +70,10 @@ const CommandBuffer = struct {
     }
 
     pub fn assign(self: *Self, entity: Entity, comptime Bundle: type, components: Bundle) !void {
-        comptime {
-            if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
-        }
+        comptime if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
+
         const types = util.typesOfBundle(Bundle);
-        const meta: Archetype.Meta = comptime .from(types);
+        const meta: Archetype.StaticMeta = comptime .from(types);
 
         var out: [meta.size()]u8 = undefined;
         meta.extractBytes(Bundle, &components, out[0..]);
@@ -95,11 +93,10 @@ const CommandBuffer = struct {
     }
 
     pub fn unassign(self: *Self, entity: Entity, comptime Bundle: type) !void {
-        comptime {
-            if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
-        }
+        comptime if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
+
         const types = util.typesOfBundle(Bundle);
-        const meta: Archetype.Meta = comptime .from(types);
+        const meta: Archetype.StaticMeta = comptime .from(types);
         const offset = self.bytes.items.len;
 
         try self.commands.append(self.gpa, Command{

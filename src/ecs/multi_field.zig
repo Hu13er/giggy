@@ -1,5 +1,5 @@
 pub const MultiField = struct {
-    meta: Meta,
+    meta: *const Meta,
     fields: []Field,
 
     const Self = @This();
@@ -8,29 +8,22 @@ pub const MultiField = struct {
         cid: u32,
         fields: []const Field.Meta,
 
-        pub inline fn from(comptime T: type) Meta {
-            const ti = @typeInfo(T);
-            assert(ti == .@"struct");
-            assert(@hasDecl(T, "cid"));
-            const cid = T.cid;
-            const l = ti.@"struct".fields.len;
-            const fs = comptime blk: {
-                var tmp: [l]Field.Meta = undefined;
-                for (0..l) |i| tmp[i] = .fromStruct(T, i);
-                break :blk tmp;
-            };
-            return .{ .cid = cid, .fields = &fs };
-        }
-
-        pub fn clone(self: *const Meta, gpa: mem.Allocator) !Meta {
-            var fs = try gpa.alloc(Field.Meta, self.fields.len);
-            for (self.fields, 0..) |f, i|
-                fs[i] = f;
-            return .{ .cid = self.cid, .fields = fs };
-        }
-
-        pub fn deinit(self: *const Meta, gpa: mem.Allocator) void {
-            gpa.free(self.fields);
+        pub inline fn from(comptime T: type) *const Meta {
+            return &struct {
+                pub const v: Meta = meta_blk: {
+                    const ti = @typeInfo(T);
+                    assert(ti == .@"struct");
+                    assert(@hasDecl(T, "cid"));
+                    const cid = T.cid;
+                    const l = ti.@"struct".fields.len;
+                    const fs = fs_blk: {
+                        var tmp: [l]Field.Meta = undefined;
+                        for (0..l) |i| tmp[i] = Field.Meta.fromStruct(T, i).*;
+                        break :fs_blk tmp;
+                    };
+                    break :meta_blk .{ .cid = cid, .fields = &fs };
+                };
+            }.v;
         }
 
         pub fn extractRaw(self: *const Meta, comptime T: type, value: *const T, out: [][]const u8) void {
@@ -79,18 +72,18 @@ pub const MultiField = struct {
         }
     };
 
-    pub fn init(gpa: mem.Allocator, meta: Meta) !Self {
+    pub fn init(gpa: mem.Allocator, meta: *const Meta) !Self {
         var fs = try gpa.alloc(Field, meta.fields.len);
         errdefer gpa.free(fs);
-        for (meta.fields, 0..) |field_meta, i| {
-            fs[i] = Field.init(gpa, field_meta) catch |err| {
+        for (meta.fields, 0..) |_, i| {
+            fs[i] = Field.init(gpa, &meta.fields[i]) catch |err| {
                 for (0..i) |j|
                     fs[j].deinit(gpa);
                 return err;
             };
         }
         return .{
-            .meta = try meta.clone(gpa),
+            .meta = meta,
             .fields = fs,
         };
     }
@@ -99,7 +92,6 @@ pub const MultiField = struct {
         for (self.fields) |*f|
             f.deinit(gpa);
         gpa.free(self.fields);
-        self.meta.deinit(gpa);
     }
 
     pub fn append(self: *Self, gpa: mem.Allocator, value: anytype) !void {
@@ -179,7 +171,7 @@ test "MultiField.Meta.from" {
                 Field.Meta{ .index = 1, .name = "y", .size = 4, .alignment = 4 },
             })[0..],
         },
-        MultiField.Meta.from(C1),
+        MultiField.Meta.from(C1).*,
     );
     const C2 = struct {
         const cid = 2;
@@ -196,21 +188,8 @@ test "MultiField.Meta.from" {
                 Field.Meta{ .index = 2, .name = "c", .size = 2, .alignment = 2 },
             })[0..],
         },
-        MultiField.Meta.from(C2),
+        MultiField.Meta.from(C2).*,
     );
-}
-
-test "MultiField.Meta.clone" {
-    const alloc = testing.allocator;
-    const C = struct {
-        const cid = 1;
-        x: u32,
-        y: u32,
-    };
-    const meta = MultiField.Meta.from(C);
-    const meta_clone = try meta.clone(alloc);
-    defer meta_clone.deinit(alloc);
-    try testing.expectEqualDeep(meta, meta_clone);
 }
 
 test "MultiField.Meta.extract" {
@@ -219,7 +198,7 @@ test "MultiField.Meta.extract" {
         x: u32,
         y: u32,
     };
-    const meta: MultiField.Meta = .from(C);
+    const meta: MultiField.Meta = MultiField.Meta.from(C).*;
     var extracted: [2][]const u8 = undefined;
     meta.extractRaw(C, &C{
         .x = 10,
@@ -242,7 +221,7 @@ test "MultiField.Meta.extractBytes" {
         y: u16,
         z: u8,
     };
-    const meta: MultiField.Meta = comptime .from(C);
+    const meta: MultiField.Meta = MultiField.Meta.from(C).*;
     try testing.expectEqual(@as(usize, 7), meta.size());
 
     var out: [meta.size()]u8 = undefined;
@@ -267,7 +246,7 @@ test "MultiField.appendRaw" {
         x: u32,
         y: u32,
     };
-    var multi = try MultiField.init(alloc, .from(C));
+    var multi = try MultiField.init(alloc, MultiField.Meta.from(C));
     defer multi.deinit(alloc);
     const data = [_][]const u8{
         &mem.toBytes(@as(u32, 0xDEADBEEF)),
@@ -293,8 +272,8 @@ test "MultiField.appendBytes" {
         y: u16,
         z: u8,
     };
-    const meta: MultiField.Meta = comptime .from(C);
-    var multi = try MultiField.init(alloc, meta);
+    const meta: MultiField.Meta = MultiField.Meta.from(C).*;
+    var multi = try MultiField.init(alloc, &meta);
     defer multi.deinit(alloc);
 
     const value = C{
@@ -328,7 +307,7 @@ test "MultiField.append" {
         x: u32,
         y: u32,
     };
-    var multi = try MultiField.init(alloc, .from(C));
+    var multi = try MultiField.init(alloc, MultiField.Meta.from(C));
     defer multi.deinit(alloc);
     const value = C{
         .x = 0xDEADBEEF,
