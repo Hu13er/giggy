@@ -33,9 +33,8 @@ pub const MultiField = struct {
             gpa.free(self.fields);
         }
 
-        pub fn extract(self: *const Meta, comptime T: type, value: *const T, out: [][]const u8) void {
+        pub fn extractRaw(self: *const Meta, comptime T: type, value: *const T, out: [][]const u8) void {
             const ti = @typeInfo(T);
-
             assert(ti == .@"struct");
             assert(@hasDecl(T, "cid"));
             assert(T.cid == self.cid);
@@ -48,6 +47,35 @@ pub const MultiField = struct {
                 const field_ptr = @as(*f.type, @ptrFromInt(base_ptr + offset));
                 out[i] = std.mem.asBytes(field_ptr);
             }
+        }
+
+        pub inline fn extractBytes(self: *const Meta, comptime T: type, value: *const T, out: []u8) void {
+            const ti = @typeInfo(T);
+            assert(ti == .@"struct");
+            assert(@hasDecl(T, "cid"));
+            assert(T.cid == self.cid);
+            const fields = ti.@"struct".fields;
+            assert(fields.len == self.fields.len);
+
+            assert(out.len == self.size());
+
+            var idx: usize = 0;
+            inline for (fields, 0..) |f, i| {
+                const base_ptr = @intFromPtr(value);
+                const offset = @offsetOf(T, f.name);
+                const field_ptr = @as(*f.type, @ptrFromInt(base_ptr + offset));
+                const s = self.fields[i].size;
+                assert(s == @sizeOf(f.type));
+                @memcpy(out[idx .. idx + s], std.mem.asBytes(field_ptr));
+                idx += s;
+            }
+            assert(idx == self.size());
+        }
+
+        pub fn size(self: *const Meta) usize {
+            var sum: usize = 0;
+            for (self.fields) |f| sum += f.size;
+            return sum;
         }
     };
 
@@ -82,7 +110,7 @@ pub const MultiField = struct {
         assert(field_count == self.fields.len);
 
         var extracted: [field_count][]const u8 = undefined;
-        self.meta.extract(T, &value, &extracted);
+        self.meta.extractRaw(T, &value, &extracted);
 
         try self.appendRaw(gpa, &extracted);
     }
@@ -90,12 +118,28 @@ pub const MultiField = struct {
     pub fn appendRaw(self: *Self, gpa: mem.Allocator, data: []const []const u8) !void {
         assert(data.len == self.fields.len);
         for (self.fields, data, 0..) |*f, d, i| {
-            f.appendRaw(gpa, d) catch |err| {
+            f.appendBytes(gpa, d) catch |err| {
                 for (0..i) |j|
                     self.fields[j].pop();
                 return err;
             };
         }
+    }
+
+    pub fn appendBytes(self: *Self, gpa: mem.Allocator, bytes: []const u8) !void {
+        const expected_len = self.meta.size();
+        assert(bytes.len == expected_len);
+
+        const before_size = self.len();
+        errdefer self.setSize(before_size);
+
+        var idx: usize = 0;
+        for (self.fields) |*f| {
+            const size = f.meta.size;
+            try f.appendBytes(gpa, bytes[idx .. idx + size]);
+            idx += size;
+        }
+        assert(idx == expected_len);
     }
 
     pub fn remove(self: *Self, index: usize) void {
@@ -108,6 +152,7 @@ pub const MultiField = struct {
     }
 
     pub fn len(self: *const Self) usize {
+        if (self.fields.len == 0) return 0;
         const l = self.fields[0].len();
         for (self.fields[1..]) |f|
             assert(f.len() == l);
@@ -176,7 +221,7 @@ test "MultiField.Meta.extract" {
     };
     const meta: MultiField.Meta = .from(C);
     var extracted: [2][]const u8 = undefined;
-    meta.extract(C, &C{
+    meta.extractRaw(C, &C{
         .x = 10,
         .y = 20,
     }, &extracted);
@@ -188,6 +233,31 @@ test "MultiField.Meta.extract" {
         @as(u32, 20),
         mem.bytesAsValue(u32, extracted[1]).*,
     );
+}
+
+test "MultiField.Meta.extractBytes" {
+    const C = struct {
+        const cid = 1;
+        x: u32,
+        y: u16,
+        z: u8,
+    };
+    const meta: MultiField.Meta = comptime .from(C);
+    try testing.expectEqual(@as(usize, 7), meta.size());
+
+    var out: [meta.size()]u8 = undefined;
+    meta.extractBytes(C, &C{
+        .x = 0x11223344,
+        .y = 0x5566,
+        .z = 0x77,
+    }, out[0..]);
+
+    const x = mem.bytesAsValue(u32, out[0..@sizeOf(u32)]).*;
+    const y = mem.bytesAsValue(u16, out[@sizeOf(u32) .. @sizeOf(u32) + @sizeOf(u16)]).*;
+    const z = mem.bytesAsValue(u8, out[@sizeOf(u32) + @sizeOf(u16) .. @sizeOf(u32) + @sizeOf(u16) + @sizeOf(u8)]).*;
+    try testing.expectEqual(@as(u32, 0x11223344), x);
+    try testing.expectEqual(@as(u16, 0x5566), y);
+    try testing.expectEqual(@as(u8, 0x77), z);
 }
 
 test "MultiField.appendRaw" {
@@ -212,6 +282,42 @@ test "MultiField.appendRaw" {
     try testing.expectEqual(
         @as(u32, 0xCAFECAFE),
         mem.bytesAsValue(u32, multi.fields[1].atRaw(0)).*,
+    );
+}
+
+test "MultiField.appendBytes" {
+    const alloc = testing.allocator;
+    const C = struct {
+        pub const cid = 1;
+        x: u32,
+        y: u16,
+        z: u8,
+    };
+    const meta: MultiField.Meta = comptime .from(C);
+    var multi = try MultiField.init(alloc, meta);
+    defer multi.deinit(alloc);
+
+    const value = C{
+        .x = 0x11223344,
+        .y = 0x5566,
+        .z = 0x77,
+    };
+    var bytes: [meta.size()]u8 = undefined;
+    meta.extractBytes(C, &value, bytes[0..]);
+
+    try multi.appendBytes(alloc, bytes[0..]);
+    try testing.expectEqual(@as(usize, 1), multi.len());
+    try testing.expectEqual(
+        @as(u32, 0x11223344),
+        mem.bytesAsValue(u32, multi.fields[0].atRaw(0)).*,
+    );
+    try testing.expectEqual(
+        @as(u16, 0x5566),
+        mem.bytesAsValue(u16, multi.fields[1].atRaw(0)).*,
+    );
+    try testing.expectEqual(
+        @as(u8, 0x77),
+        mem.bytesAsValue(u8, multi.fields[2].atRaw(0)).*,
     );
 }
 

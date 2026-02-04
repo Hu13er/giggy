@@ -102,7 +102,7 @@ pub const World = struct {
                     .components[dst_idx]
                     .fields;
                 for (fields_src, fields_dst) |src, *dst|
-                    try dst.appendRaw(self.gpa, src.atRaw(src_index));
+                    try dst.appendBytes(self.gpa, src.atRaw(src_index));
             }
         }
 
@@ -152,7 +152,7 @@ pub const World = struct {
                 .components[dst_idx]
                 .fields;
             for (fields_src, fields_dst) |src, *dst|
-                try dst.appendRaw(self.gpa, src.atRaw(src_index));
+                try dst.appendBytes(self.gpa, src.atRaw(src_index));
         }
 
         try self.entity_archetype.put(entity, dst_hash);

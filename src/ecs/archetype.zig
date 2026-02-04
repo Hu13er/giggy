@@ -160,6 +160,54 @@ pub const Archetype = struct {
             return hasher.final();
         }
 
+        pub inline fn extractBytes(self: *const Meta, comptime Bundle: type, value: *const Bundle, out: []u8) void {
+            comptime {
+                if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
+            }
+            assert(out.len == self.size());
+
+            const ti = @typeInfo(Bundle);
+            const fields = ti.@"struct".fields;
+
+            const Entry = struct {
+                cid: u32,
+                offset: usize,
+                T: type,
+            };
+
+            const entries = comptime blk: {
+                var tmp: [fields.len]Entry = undefined;
+                for (fields, 0..) |f, i| {
+                    const T = f.type;
+                    if (!@hasDecl(T, "cid"))
+                        @compileError("Bundle fields should be components");
+                    tmp[i] = .{
+                        .cid = T.cid,
+                        .offset = @offsetOf(Bundle, f.name),
+                        .T = T,
+                    };
+                }
+                break :blk tmp;
+            };
+
+            var idx: usize = 0;
+            for (self.components) |comp| {
+                const s = comp.size();
+                const base_ptr = @intFromPtr(value);
+                inline for (entries) |e| {
+                    if (e.cid == comp.cid) {
+                        const field_ptr = @as(*e.T, @ptrFromInt(base_ptr + e.offset));
+                        comp.extractBytes(e.T, field_ptr, out[idx .. idx + s]);
+                        break;
+                    }
+                } else {
+                    unreachable;
+                }
+                idx += s;
+            }
+            assert(idx == self.size());
+        }
+
         pub fn hasComponents(self: *const Meta, comptime Comps: []const type) bool {
             var cids: [Comps.len]u32 = undefined;
             inline for (Comps, 0..) |C, i| {
@@ -178,6 +226,12 @@ pub const Archetype = struct {
                 if (!found) return false;
             }
             return true;
+        }
+
+        pub fn size(self: *const Meta) usize {
+            var sum: usize = 0;
+            for (self.components) |comp| sum += comp.size();
+            return sum;
         }
     };
 
@@ -280,6 +334,30 @@ pub const Archetype = struct {
         }
     }
 
+    pub fn appendBytes(self: *Self, gpa: mem.Allocator, entity: Entity, bytes: []const u8) !void {
+        const before_size = self.len();
+        try self.appendPartialBytes(gpa, &self.meta, bytes);
+        errdefer self.setComponentsSize(before_size);
+        _ = try self.appendEntity(gpa, entity);
+    }
+
+    pub fn appendPartialBytes(self: *Self, gpa: mem.Allocator, meta: *const Meta, bytes: []const u8) !void {
+        const expected_len = meta.size();
+        assert(bytes.len == expected_len);
+
+        const before_size = self.len();
+        errdefer self.setComponentsSize(before_size);
+
+        var idx: usize = 0;
+        for (meta.components) |comp| {
+            const cid_idx = self.indexOfCID(comp.cid).?;
+            const size: usize = comp.size();
+            try self.components[cid_idx].appendBytes(gpa, bytes[idx .. idx + size]);
+            idx += size;
+        }
+        assert(idx == expected_len);
+    }
+
     pub fn appendEntity(self: *Self, gpa: mem.Allocator, entity: Entity) !usize {
         const new_index = self.entities.items.len;
         try self.entities_index.put(entity, new_index);
@@ -295,7 +373,7 @@ pub const Archetype = struct {
         try self.entities.append(gpa, entity);
         errdefer _ = self.entities.pop();
         for (self.components, data, 0..) |*c, d, i| {
-            c.appendRaw(gpa, d) catch |err| {
+            c.appendBytes(gpa, d) catch |err| {
                 for (0..i) |j|
                     self.components[j].pop();
                 return err;
@@ -531,6 +609,48 @@ test "Archetype.Meta.clone" {
     try testing.expectEqualDeep(meta, meta_clone);
 }
 
+test "Archetype.Meta.extractBytes" {
+    const Position = struct {
+        pub const cid = 1;
+        x: u32,
+        y: u16,
+    };
+    const Velocity = struct {
+        pub const cid = 2;
+        dx: u8,
+        dy: u32,
+    };
+    const Bundle = struct {
+        vel: Velocity,
+        pos: Position,
+    };
+
+    const meta: Archetype.Meta = comptime .from(&[_]type{ Velocity, Position });
+    try testing.expectEqual(@as(usize, 11), meta.size());
+
+    const bundle = Bundle{
+        .vel = .{ .dx = 0x77, .dy = 0x8899AABB },
+        .pos = .{ .x = 0x11223344, .y = 0x5566 },
+    };
+
+    var out: [meta.size()]u8 = undefined;
+    meta.extractBytes(Bundle, &bundle, out[0..]);
+
+    const pos_x_size = @sizeOf(u32);
+    const pos_y_size = @sizeOf(u16);
+    const vel_dx_size = @sizeOf(u8);
+
+    const pos_x = mem.bytesAsValue(u32, out[0..pos_x_size]).*;
+    const pos_y = mem.bytesAsValue(u16, out[pos_x_size .. pos_x_size + pos_y_size]).*;
+    const vel_dx = mem.bytesAsValue(u8, out[pos_x_size + pos_y_size .. pos_x_size + pos_y_size + vel_dx_size]).*;
+    const vel_dy = mem.bytesAsValue(u32, out[pos_x_size + pos_y_size + vel_dx_size .. meta.size()]).*;
+
+    try testing.expectEqual(@as(u32, 0x11223344), pos_x);
+    try testing.expectEqual(@as(u16, 0x5566), pos_y);
+    try testing.expectEqual(@as(u8, 0x77), vel_dx);
+    try testing.expectEqual(@as(u32, 0x8899AABB), vel_dy);
+}
+
 test "Archetype with empty Meta" {
     const alloc = testing.allocator;
 
@@ -556,6 +676,45 @@ test "Archetype with empty Meta" {
         count += 1;
     }
     try testing.expectEqual(4, count);
+}
+
+test "Archetype.appendBytes" {
+    const alloc = testing.allocator;
+    const Position = struct {
+        pub const cid = 1;
+        x: u32,
+        y: u16,
+    };
+    const Velocity = struct {
+        pub const cid = 2;
+        dx: u8,
+        dy: u32,
+    };
+    const Bundle = struct {
+        pos: Position,
+        vel: Velocity,
+    };
+
+    const meta: Archetype.Meta = comptime .from(&[_]type{ Position, Velocity });
+    var archetype = try Archetype.init(alloc, meta);
+    defer archetype.deinit(alloc);
+
+    const bundle = Bundle{
+        .pos = .{ .x = 0x11223344, .y = 0x5566 },
+        .vel = .{ .dx = 0x77, .dy = 0x8899AABB },
+    };
+
+    var bytes: [meta.size()]u8 = undefined;
+    meta.extractBytes(Bundle, &bundle, bytes[0..]);
+    try archetype.appendBytes(alloc, @as(Entity, 1), bytes[0..]);
+
+    try testing.expectEqual(@as(usize, 1), archetype.len());
+    const pos = archetype.atAuto(Position, 0);
+    const vel = archetype.atAuto(Velocity, 0);
+    try testing.expectEqual(@as(u32, 0x11223344), pos.x.*);
+    try testing.expectEqual(@as(u16, 0x5566), pos.y.*);
+    try testing.expectEqual(@as(u8, 0x77), vel.dx.*);
+    try testing.expectEqual(@as(u32, 0x8899AABB), vel.dy.*);
 }
 
 test "Archetype.at" {

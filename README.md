@@ -40,11 +40,11 @@ This ECS uses:
 ---
 
 ### Command Buffer
-- [ ] Decide command buffer data structure
-- [ ] Spawn with init components
-- [ ] Despawn a game entity
-- [ ] Assign components to a game entity
-- [ ] Unassign components from a game entity
+- [X] Decide command buffer data structure
+- [X] Spawn with init components
+- [X] Despawn a game entity
+- [X] Assign components to a game entity
+- [X] Unassign components from a game entity
 - [ ] Flush command buffer at a safe sync point to the world
 
 ---

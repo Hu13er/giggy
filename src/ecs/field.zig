@@ -50,10 +50,10 @@ pub const Field = struct {
     pub fn append(self: *Self, gpa: mem.Allocator, value: anytype) !void {
         const T = @TypeOf(value);
         assert(@sizeOf(T) == self.meta.size);
-        try self.appendRaw(gpa, mem.asBytes(&value));
+        try self.appendBytes(gpa, mem.asBytes(&value));
     }
 
-    pub fn appendRaw(self: *Self, gpa: mem.Allocator, data: []const u8) !void {
+    pub fn appendBytes(self: *Self, gpa: mem.Allocator, data: []const u8) !void {
         assert(data.len == self.meta.size);
         try self.buffer.appendSlice(gpa, data);
     }
@@ -143,12 +143,12 @@ test "Field.Meta.fromStruct" {
     );
 }
 
-test "Field.appendRaw" {
+test "Field.appendBytes" {
     const alloc = testing.allocator;
 
     var f1 = try Field.init(alloc, .fromScalar(u8));
     defer f1.deinit(alloc);
-    try f1.appendRaw(alloc, &[_]u8{0x88});
+    try f1.appendBytes(alloc, &[_]u8{0x88});
     try testing.expectEqual(@as(u8, 0x88), mem.bytesAsValue(u8, f1.atRaw(0)).*);
 
     var f2 = try Field.init(alloc, .fromScalar(u32));
@@ -160,7 +160,7 @@ test "Field.appendRaw" {
         0xFFFFFFFF,
     };
     for (test_cases) |tc| {
-        try f2.appendRaw(alloc, mem.asBytes(&tc));
+        try f2.appendBytes(alloc, mem.asBytes(&tc));
     }
     for (test_cases, 0..) |expected, idx| {
         const actual_bytes = f2.atRaw(idx);
