@@ -57,7 +57,7 @@ pub fn main() anyerror!void {
 
     rl.InitWindow(screenWidth, screenHeight, "Giggy: Blob Splits");
     defer rl.CloseWindow();
-    rl.SetTargetFPS(60);
+    rl.SetTargetFPS(160);
 
     const allocator = std.heap.page_allocator;
     var world = try ecs.World.init(allocator);
@@ -74,7 +74,7 @@ pub fn main() anyerror!void {
         .factor = 0.8,
     };
 
-    for (0..32) |i| {
+    for (0..256) |i| {
         const pos = Position{
             .x = 100.0 + 100.0 * @as(f32, @floatFromInt(i)),
             .y = 200.0,
@@ -151,6 +151,10 @@ pub fn main() anyerror!void {
             );
         }
 
+        var buf: [64]u8 = undefined;
+        const text = try std.fmt.bufPrintZ(&buf, "items: {d}", .{world.count()});
+        const text_ptr = @as([*c]const u8, text.ptr);
+        rl.DrawText(text_ptr, 10, screenHeight - 60, 16, rl.BLUE);
         rl.DrawText("Buffers flush at sync points; blobs split on walls.", 10, 10, 16, rl.DARKGRAY);
         rl.DrawFPS(10, screenHeight - 30);
     }
