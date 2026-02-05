@@ -49,7 +49,20 @@ This ECS uses:
 
 ---
 
-### Minimal Game
+### Collider 
+- [ ] Decide data structure and algorithms
+- [ ] Implement collision layer/mask
+
+---
+
+### Map designing
+
+- [ ] Load map image
+- [ ] find a way to spawn game objects on it
+
+---
+
+### Minimal Game Test
 The repo is already wired for a tiny playable loop: spawn entities, mutate components through the command buffer, and flush those commands into the `World`.
 
 - [X] Define a mini-game
@@ -60,6 +73,11 @@ The repo is already wired for a tiny playable loop: spawn entities, mutate compo
 - [X] Render game with Raylib
 
 ![Splitting blobs sample](assets/images/screenshot.png)
+
+
+### Start main Game
+
+- [ ] Simple player in a scene
 
 ---
 
