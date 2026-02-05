@@ -1,5 +1,5 @@
-const screenWidth: u32 = 1024;
-const screenHeight: u32 = 1024;
+const screenWidth: u32 = 800;
+const screenHeight: u32 = 600;
 
 pub fn main() !void {
     rl.InitWindow(screenWidth, screenHeight, "Giggy: Blob Splits");
@@ -49,7 +49,7 @@ pub fn main() !void {
         },
         .target = rl.Vector2{ .x = 0, .y = 0 },
         .rotation = 0.0,
-        .zoom = 2.0,
+        .zoom = 1.0,
     };
     const camera3d = rl.Camera3D{
         .position = .{ .x = 3.0, .y = 3.0, .z = 3.0 },
@@ -114,10 +114,23 @@ pub fn main() !void {
         {
             // update camera target
             const player_pos = world.get(comps.PositionView, player).?;
-            camera.target = .{
-                .x = player_pos.x.*,
-                .y = player_pos.y.*,
-            };
+
+            const w = @as(f32, @floatFromInt(screenWidth));
+            const h = @as(f32, @floatFromInt(screenHeight));
+
+            var x = player_pos.x.*;
+            const min_x = w / 2.0;
+            const max_x = @as(f32, @floatFromInt(textures[0].width)) - w / 2.0;
+            x = @max(x, min_x);
+            x = @min(x, max_x);
+
+            var y = player_pos.y.*;
+            const min_y = @as(f32, @floatFromInt(screenHeight)) / (2.0);
+            const max_y = @as(f32, @floatFromInt(textures[0].height)) - h / 2.0;
+            y = @max(y, min_y);
+            y = @min(y, max_y);
+
+            camera.target = .{ .x = x, .y = y };
         }
         {
             // animate moving objects
@@ -158,8 +171,6 @@ pub fn main() !void {
                 const anim = model_animations[am.index.*][am.animation_index.*];
                 const new_current = (am.frame.* + 1) % @as(usize, @intCast(anim.frameCount));
                 am.frame.* = new_current;
-                std.debug.print("anim: {s}\n", .{anim.name});
-                std.debug.print("frame: {d}\n", .{new_current});
                 rl.UpdateModelAnimationBones(model, anim, @intCast(new_current));
             }
         }
