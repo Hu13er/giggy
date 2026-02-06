@@ -49,18 +49,6 @@ This ECS uses:
 
 ---
 
-### Collider 
-- [ ] Decide data structure and algorithms
-- [ ] Implement collision layer/mask
-
----
-
-### Map designing
-
-- [ ] Load map image
-- [ ] find a way to spawn game objects on it
-
----
 
 ### Minimal Game Test
 The repo is already wired for a tiny playable loop: spawn entities, mutate components through the command buffer, and flush those commands into the `World`.
@@ -74,10 +62,26 @@ The repo is already wired for a tiny playable loop: spawn entities, mutate compo
 
 ![Splitting blobs sample](assets/images/screenshot.png)
 
+---
+
+
+### Map designing
+
+- [X] Load map image
+- [X] find a way to spawn game objects on it _meh_ 
+
+---
+
+### Collider 
+- [X] Simple collider
+- [ ] Decide data structure and algorithms
+- [ ] Implement collision layer/mask
+
+---
 
 ### Start main Game
 
-- [ ] Simple player in a scene
+- [X] Simple player in a scene
 
 ---
 
