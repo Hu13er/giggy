@@ -11,6 +11,31 @@ This ECS uses:
 
 ---
 
+## Setup project
+
+```bash
+
+REPO=$PWD
+mkdir -p ./{dep,include,lib}
+
+# clone and compile raylib
+cd dep
+git clone --depth 1 https://github.com/raysan5/raylib.git raylib
+cd raylib/src
+make clean || exit 1
+make PLATFORM=PLATFORM_DESKTOP || exit 1
+cp libraylib.a  $REPO/lib/
+cp *.h $REPO/include/
+
+# now build project
+cd $REPO
+zig build run
+
+```
+
+
+---
+
 ## Philosophy
 - Build a real game, not a framework demo
 - Favor clarity and explicitness over abstraction
@@ -82,6 +107,8 @@ The repo is already wired for a tiny playable loop: spawn entities, mutate compo
 ### Start main Game
 
 - [X] Simple player in a scene
+
+![Giggy](assets/images/giggy.png)
 
 ---
 
