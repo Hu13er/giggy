@@ -43,8 +43,7 @@ pub fn loadLayer(allocator: std.mem.Allocator, file_path: []const u8) !ParsedLay
     defer file.close();
 
     const contents = try file.readToEndAlloc(allocator, math.maxInt(usize));
-    //BUG: memory leak here: this free also frees parsed json memories.
-    //defer allocator.free(contents);
+    defer allocator.free(contents);
 
     return try json.parseFromSlice(
         Layer,
