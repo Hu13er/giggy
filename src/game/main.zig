@@ -11,7 +11,9 @@ pub const SystemCtx = struct {
 pub fn main() !void {
     rl.InitWindow(screenWidth, screenHeight, "Giggy: Blob Splits");
     defer rl.CloseWindow();
-    rl.SetTargetFPS(160);
+    const hz = rl.GetMonitorRefreshRate(rl.GetCurrentMonitor());
+    rl.SetTargetFPS(hz);
+    // rl.SetTargetFPS(160);
 
     // init ecs
     const allocator = std.heap.c_allocator;
