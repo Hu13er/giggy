@@ -1,6 +1,13 @@
 const screenWidth: u32 = 800;
 const screenHeight: u32 = 600;
 
+pub const SystemCtx = struct {
+    resc: *Resources,
+    world: *ecs.World,
+    cb: *ecs.CommandBuffer,
+    dt: f32,
+};
+
 pub fn main() !void {
     rl.InitWindow(screenWidth, screenHeight, "Giggy: Blob Splits");
     defer rl.CloseWindow();
@@ -8,42 +15,27 @@ pub fn main() !void {
 
     // init ecs
     const allocator = std.heap.c_allocator;
+
     var world = try ecs.World.init(allocator);
     defer world.deinit();
 
-    // load resources
-    const textures = [_]rl.Texture2D{
-        rl.LoadTexture("resources/map.png"),
-        rl.LoadTexture("resources/abol.png"),
-        rl.LoadTexture("resources/wall1.png"),
-        rl.LoadTexture("resources/wall2.png"),
-    };
-    defer for (textures) |t| rl.UnloadTexture(t);
+    var resc = try Resources.init(allocator);
+    defer resc.deinit();
 
-    const jsons = [_]map_loader.ParsedLayer{
-        try map_loader.loadLayer(allocator, "resources/json/layers.json"),
-    };
-    defer for (jsons) |j| j.deinit();
+    _ = try resc.loadTexture("map", "resources/map.png");
+    _ = try resc.loadTexture("abol", "resources/abol.png");
+    _ = try resc.loadTexture("wall1", "resources/wall1.png");
+    _ = try resc.loadTexture("wall2", "resources/wall2.png");
 
-    const models = [_]rl.Model{
-        rl.LoadModel("resources/gltf/greenman.glb"),
-    };
-    defer for (models) |m| rl.UnloadModel(m);
+    const greenman_model = try resc.loadModel("greenman", "resources/gltf/greenman.glb");
+    const skinning_shader = try resc.loadShader(
+        "skinning",
+        "resources/shaders/glsl330/skinning.vs",
+        "resources/shaders/glsl330/skinning.fs",
+    );
+    greenman_model.model.materials[1].shader = skinning_shader.*;
 
-    const shaders = [_]rl.Shader{
-        rl.LoadShader(
-            "resources/shaders/glsl330/skinning.vs",
-            "resources/shaders/glsl330/skinning.fs",
-        ),
-    };
-    defer for (shaders) |s| rl.UnloadShader(s);
-
-    models[0].materials[1].shader = shaders[0];
-
-    const model_animations = [_][]rl.ModelAnimation{
-        loadModelAnimations("resources/gltf/greenman.glb"),
-    };
-    defer for (model_animations) |ma| unloadModelAnimations(ma);
+    _ = try resc.loadJson("level1", "resources/json/layers.json");
 
     const render_textures = [_]rl.RenderTexture{
         rl.LoadRenderTexture(64, 64),
@@ -73,19 +65,20 @@ pub fn main() !void {
         comps.Position{ .x = 70, .y = 70 },
         comps.Velocity{ .x = 0, .y = 0 },
         comps.Rotation{ .teta = 0 },
-        comps.Model3D{ .index = 0, .render_texture = 0, .mesh = 0, .material = 1 },
-        comps.Animation{ .index = 0, .animation_index = 0, .frame = 0 },
+        comps.Model3D{ .name = "greenman", .render_texture = 0, .mesh = 0, .material = 1 },
+        comps.Animation{ .index = 0, .frame = 0 },
         comps.MoveAnimation{ .idle = 0, .run = 2 },
     });
 
-    for (jsons) |js| {
+    var json_it = resc.jsons.valueIterator();
+    while (json_it.next()) |js| {
         for (js.value.images) |img| {
             if (img.index == 0) continue; // dont load backgorund
-            assert(0 <= img.index and img.index < textures.len);
+            assert(resc.textures.getPtr(img.name) != null);
             _ = try world.spawn(.{
                 comps.Position{ .x = img.position.x, .y = img.position.y },
                 comps.WidthHeight{ .w = img.width, .h = img.height },
-                comps.Texture{ .index = img.index },
+                comps.Texture{ .name = img.name },
             });
         }
         for (js.value.polygons) |poly| {
@@ -116,119 +109,42 @@ pub fn main() !void {
         }
     }
 
+    var command_buffer = try ecs.CommandBuffer.init(allocator);
     // main loop
     while (!rl.WindowShouldClose()) {
         const dt = rl.GetFrameTime();
-        {
-            const player_vel = world.get(comps.VelocityView, player).?;
-            const player_rot = world.get(comps.RotationView, player).?;
+        const ctx = ecs.SystemCtx{
+            .world = &world,
+            .cb = &command_buffer,
+            .dt = dt,
+        };
 
-            var x: f32 = 0;
-            var y: f32 = 0;
-            if (rl.IsKeyDown(rl.KEY_D)) {
-                x = 10;
-            } else if (rl.IsKeyDown(rl.KEY_A)) {
-                x = -10;
-            } else {
-                x = 0;
-            }
-            if (rl.IsKeyDown(rl.KEY_W)) {
-                y = -10;
-            } else if (rl.IsKeyDown(rl.KEY_S)) {
-                y = 10;
-            } else {
-                y = 0;
-            }
-            const l = std.math.sqrt(x * x + y * y);
-            if (l > 0.1) {
-                x = x / l * 100.0;
-                y = y / l * 100.0;
-
-                const angle = std.math.atan2(y, -x);
-                player_rot.teta.* = std.math.radiansToDegrees(angle) - 45.0;
-            }
-            player_vel.x.* = x;
-            player_vel.y.* = y;
-        }
-        {
-            // pos += vel
-            var it = world.query(&[_]type{ comps.Position, comps.Velocity });
-            while (it.next()) |_| {
-                const pos = it.get(comps.PositionView);
-                const vel = it.get(comps.VelocityView);
-
-                const new_x = pos.x.* + dt * vel.x.*;
-                const new_y = pos.y.* + dt * vel.y.*;
-
-                var edge_it = world.query(&[_]type{comps.Line});
-                var blocked = false;
-                while (edge_it.next()) |_| {
-                    const line = edge_it.get(comps.LineView);
-                    if (rl.CheckCollisionCircleLine(
-                        .{ .x = new_x, .y = new_y },
-                        16.0,
-                        .{ .x = line.x0.*, .y = line.y0.* },
-                        .{ .x = line.x1.*, .y = line.y1.* },
-                    )) {
-                        blocked = true;
-                        break;
-                    }
-                }
-
-                if (blocked) continue;
-                pos.x.* += dt * vel.x.*;
-                pos.y.* += dt * vel.y.*;
-            }
-        }
+        systems.playerInput(ctx, player);
+        systems.updatePositions(ctx);
         {
             // update camera target
             const player_pos = world.get(comps.PositionView, player).?;
 
-            const w = @as(f32, @floatFromInt(screenWidth));
-            const h = @as(f32, @floatFromInt(screenHeight));
+            const w = @as(f32, @floatFromInt(Resources.screenWidth));
+            const h = @as(f32, @floatFromInt(Resources.screenHeight));
+
+            const map = resc.textures.getPtr("map").?;
 
             var x = player_pos.x.*;
             const min_x = w / 2.0;
-            const max_x = @as(f32, @floatFromInt(textures[0].width)) - w / 2.0;
+            const max_x = @as(f32, @floatFromInt(map.width)) - w / 2.0;
             x = @max(x, min_x);
             x = @min(x, max_x);
 
             var y = player_pos.y.*;
-            const min_y = @as(f32, @floatFromInt(screenHeight)) / (2.0);
-            const max_y = @as(f32, @floatFromInt(textures[0].height)) - h / 2.0;
+            const min_y = h / (2.0);
+            const max_y = @as(f32, @floatFromInt(map.height)) - h / 2.0;
             y = @max(y, min_y);
             y = @min(y, max_y);
 
             camera.target = .{ .x = x, .y = y };
         }
-        {
-            // animate moving objects
-            var it = world.query(&[_]type{ comps.Velocity, comps.MoveAnimation, comps.Animation });
-            while (it.next()) |_| {
-                const av = it.get(comps.AnimationView);
-                const vv = it.get(comps.VelocityView);
-                const mav = it.get(comps.MoveAnimationView);
-                if (@abs(vv.x.*) > 0.1 or @abs(vv.y.*) > 0.1) {
-                    av.animation_index.* = mav.run.*;
-                } else {
-                    av.animation_index.* = mav.idle.*;
-                }
-            }
-        }
-        {
-            // animate moving objects
-            var it = world.query(&[_]type{ comps.Animation, comps.Velocity, comps.MoveAnimation });
-            while (it.next()) |_| {
-                const av = it.get(comps.AnimationView);
-                const vv = it.get(comps.VelocityView);
-                const mav = it.get(comps.MoveAnimationView);
-                if (@abs(vv.x.*) > 0.1 or @abs(vv.y.*) > 0.1) {
-                    av.animation_index.* = mav.run.*;
-                } else {
-                    av.animation_index.* = mav.idle.*;
-                }
-            }
-        }
+        systems.animateMovingObjects(ctx);
         {
             // 3d model animations
             var it = world.query(&[_]type{ comps.Model3D, comps.Animation });
@@ -236,11 +152,15 @@ pub fn main() !void {
                 const mv = it.get(comps.Model3DView);
                 const am = it.get(comps.AnimationView);
 
-                const model = models[mv.index.*];
-                const anim = model_animations[am.index.*][am.animation_index.*];
-                const new_current = (am.frame.* + 1) % @as(usize, @intCast(anim.frameCount));
+                const model = resc.models.getPtr(mv.name.*).?;
+                const frame_count = @as(usize, @intCast(model.animations[am.index.*].frameCount));
+                const new_current = (am.frame.* + 1) % frame_count;
                 am.frame.* = new_current;
-                rl.UpdateModelAnimationBones(model, anim, @intCast(new_current));
+                rl.UpdateModelAnimationBones(
+                    model.model,
+                    model.animations[am.index.*],
+                    @intCast(new_current),
+                );
             }
         }
         {
@@ -250,11 +170,13 @@ pub fn main() !void {
                 const mv = it.get(comps.Model3DView);
                 const rv = it.get(comps.RotationView);
 
+                const model = resc.models.getPtr(mv.name.*).?;
+
                 rl.BeginTextureMode(render_textures[mv.render_texture.*]);
                 rl.ClearBackground(rl.BLANK);
                 rl.BeginMode3D(camera3d);
                 rl.DrawModelEx(
-                    models[mv.index.*],
+                    model.model,
                     rl.Vector3{ .x = 0, .y = 0, .z = 0 },
                     rl.Vector3{ .x = 0, .y = 1, .z = 0 }, // rotate around Y
                     rv.teta.*,
@@ -290,13 +212,15 @@ pub fn main() !void {
                 const wh = it.get(comps.WidthHeightView);
                 const t = it.get(comps.TextureView);
 
+                const texture = resc.textures.getPtr(t.name.*).?;
+
                 try to_render.append(allocator, Renderable{
                     .x = pos.x.*,
                     .y = pos.y.*,
                     .w = wh.w.*,
                     .h = wh.h.*,
                     .flip_h = false,
-                    .texture = textures[t.index.*],
+                    .texture = texture.*,
                 });
             }
         }
@@ -326,7 +250,9 @@ pub fn main() !void {
                 return false;
             }
         }.lessThan);
-        rl.DrawTexture(textures[0], 0, 0, rl.WHITE);
+
+        const map = resc.textures.get("map").?;
+        rl.DrawTexture(map, 0, 0, rl.WHITE);
         for (to_render.items) |r| {
             const flip: f32 = if (r.flip_h) -1 else 1;
             const src = rl.Rectangle{
@@ -341,37 +267,6 @@ pub fn main() !void {
             const to: rl.Vector2 = .{ .x = 800.0, .y = r.y + r.h };
             rl.DrawLineEx(from, to, 4.0, rl.RED);
         }
-
-        // {
-        //     var it = world.query(&[_]type{ comps.Position, comps.Model3D });
-        //     while (it.next()) |_| {
-        //         const pos = it.get(comps.PositionView);
-        //         const model = it.get(comps.Model3DView);
-        //         const render_texture = render_textures[model.render_texture.*];
-        //         const src = rl.Rectangle{
-        //             .x = 0,
-        //             .y = 0,
-        //             .width = @as(f32, @floatFromInt(render_texture.texture.width)),
-        //             .height = -@as(f32, @floatFromInt(render_texture.texture.height)),
-        //         };
-        //         rl.DrawTextureRec(
-        //             render_texture.texture,
-        //             src,
-        //             rl.Vector2{ .x = pos.x.* - src.width / 2, .y = pos.y.* + src.height / 2 },
-        //             rl.WHITE,
-        //         );
-        //     }
-        // }
-
-        // debug things.
-        // {
-        //     // Draw edge lines
-        //     var it = world.query(&[_]type{ comps.Position, comps.Velocity });
-        //     while (it.next()) |_| {
-        //         const pos = it.get(comps.PositionView);
-        //         rl.DrawCircleV(.{ .x = pos.x.*, .y = pos.y.* }, 16.0, rl.RED);
-        //     }
-        // }
         {
             // Draw edge lines
             var it = world.query(&[_]type{comps.Line});
@@ -407,4 +302,7 @@ const rm = @import("../rl.zig").rm;
 
 const ecs = @import("../ecs.zig");
 const comps = @import("components.zig");
+const systems = @import("systems.zig");
 const map_loader = @import("map_loader.zig");
+
+const Resources = @import("resources.zig");

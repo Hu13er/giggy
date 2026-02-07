@@ -36,7 +36,7 @@ pub const CircleView = struct {
 
 pub const Model3D = struct {
     pub const cid = 4;
-    index: usize,
+    name: []const u8,
     mesh: usize,
     material: usize,
     render_texture: usize,
@@ -44,7 +44,7 @@ pub const Model3D = struct {
 
 pub const Model3DView = struct {
     pub const Of = Model3D;
-    index: *usize,
+    name: *[]const u8,
     mesh: *usize,
     material: *usize,
     render_texture: *usize,
@@ -53,14 +53,12 @@ pub const Model3DView = struct {
 pub const Animation = struct {
     pub const cid = 5;
     index: usize,
-    animation_index: usize,
     frame: usize,
 };
 
 pub const AnimationView = struct {
     pub const Of = Animation;
     index: *usize,
-    animation_index: *usize,
     frame: *usize,
 };
 
@@ -88,12 +86,12 @@ pub const RotationView = struct {
 
 pub const Texture = struct {
     pub const cid = 8;
-    index: usize,
+    name: []const u8,
 };
 
 pub const TextureView = struct {
     pub const Of = Texture;
-    index: *usize,
+    name: *[]const u8,
 };
 
 pub const Line = struct {
