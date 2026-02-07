@@ -144,6 +144,114 @@ pub fn render3dModels(ctx: SystemCtx) void {
     }
 }
 
+pub fn renderBackground(ctx: SystemCtx, name: []const u8) void {
+    const background = ctx.resc.textures.get(name).?;
+    rl.DrawTexture(background, 0, 0, rl.WHITE);
+}
+
+pub fn collectRenderables(ctx: SystemCtx, gpa: mem.Allocator, list: *RenderableList) !void {
+    var it_texture = ctx.world.query(&[_]type{ comps.Position, comps.WidthHeight, comps.Texture });
+    while (it_texture.next()) |_| {
+        const pos = it_texture.get(comps.PositionView);
+        const wh = it_texture.get(comps.WidthHeightView);
+        const t = it_texture.get(comps.TextureView);
+
+        const texture = ctx.resc.textures.getPtr(t.name.*).?;
+
+        try list.append(gpa, Renderable{
+            .x = pos.x.*,
+            .y = pos.y.*,
+            .w = wh.w.*,
+            .h = wh.h.*,
+            .flip_h = false,
+            .texture = texture.*,
+        });
+    }
+    var it_render = ctx.world.query(&[_]type{ comps.Position, comps.RenderInto });
+    while (it_render.next()) |_| {
+        const pos = it_render.get(comps.PositionView);
+        const into = it_render.getAuto(comps.RenderInto).into;
+        const render_texture = ctx.resc.render_textures.get(into.*).?;
+
+        const w = @as(f32, @floatFromInt(render_texture.texture.width));
+        const h = @as(f32, @floatFromInt(render_texture.texture.height));
+
+        try list.append(gpa, Renderable{
+            .x = pos.x.* - h / 2.0,
+            .y = pos.y.* - w / 2.0,
+            .w = w,
+            .h = h,
+            .flip_h = true,
+            .texture = render_texture.texture,
+        });
+    }
+}
+
+pub fn renderRenderables(_: SystemCtx, list: *RenderableList) void {
+    std.sort.insertion(Renderable, list.items, {}, struct {
+        fn lessThan(_: void, a: Renderable, b: Renderable) bool {
+            if (a.y + a.h < b.y + b.h) return true;
+            return false;
+        }
+    }.lessThan);
+    for (list.items) |r| {
+        const flip: f32 = if (r.flip_h) -1 else 1;
+        const src = rl.Rectangle{
+            .x = 0,
+            .y = 0,
+            .width = r.w,
+            .height = r.h * flip,
+        };
+        rl.DrawTextureRec(r.texture, src, .{ .x = r.x, .y = r.y }, rl.WHITE);
+    }
+}
+
+pub fn updateDebugMode(ctx: SystemCtx) bool {
+    if (rl.IsKeyReleased(rl.KEY_F9)) {
+        ctx.resc.debug = !ctx.resc.debug;
+    }
+    return ctx.resc.debug;
+}
+
+pub fn renderBoxes(ctx: SystemCtx) void {
+    var it_texture = ctx.world.query(&[_]type{ comps.Position, comps.Texture });
+    while (it_texture.next()) |_| {
+        const pos = it_texture.get(comps.PositionView);
+        const texture_name = it_texture.getAuto(comps.Texture).name;
+        const texture = ctx.resc.textures.get(texture_name.*).?;
+        rl.DrawRectangleLinesEx(rl.Rectangle{
+            .x = pos.x.*,
+            .y = pos.y.*,
+            .width = @floatFromInt(texture.width),
+            .height = @floatFromInt(texture.height),
+        }, 4.0, rl.RED);
+    }
+    var it_render = ctx.world.query(&[_]type{ comps.Position, comps.RenderInto });
+    while (it_render.next()) |_| {
+        const pos = it_render.get(comps.PositionView);
+        const into = it_render.getAuto(comps.RenderInto).into;
+        const render_texture = ctx.resc.render_textures.get(into.*).?;
+        const w: f32 = @floatFromInt(render_texture.texture.width);
+        const h: f32 = @floatFromInt(render_texture.texture.height);
+        rl.DrawRectangleLinesEx(rl.Rectangle{
+            .x = pos.x.* - w / 2.0,
+            .y = pos.y.* - h / 2.0,
+            .width = w,
+            .height = h,
+        }, 4.0, rl.RED);
+    }
+}
+
+pub fn renderColliders(ctx: SystemCtx) void {
+    var it = ctx.world.query(&[_]type{comps.Line});
+    while (it.next()) |_| {
+        const line = it.get(comps.LineView);
+        const from: rl.Vector2 = .{ .x = line.x0.*, .y = line.y0.* };
+        const to: rl.Vector2 = .{ .x = line.x1.*, .y = line.y1.* };
+        rl.DrawLineEx(from, to, 4.0, rl.GREEN);
+    }
+}
+
 pub const Renderable = struct {
     x: f32,
     y: f32,
@@ -164,6 +272,7 @@ const camera3d = rl.Camera3D{
 };
 
 const std = @import("std");
+const mem = std.mem;
 const math = std.math;
 const debug = std.debug;
 const assert = debug.assert;

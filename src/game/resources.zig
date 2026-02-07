@@ -7,6 +7,7 @@ models: std.StringHashMap(Model),
 shaders: std.StringHashMap(rl.Shader),
 jsons: std.StringHashMap(map_loader.ParsedLayer),
 gpa: mem.Allocator,
+debug: bool,
 
 const Self = @This();
 
@@ -18,6 +19,7 @@ pub fn init(gpa: mem.Allocator) !Self {
         .shaders = std.StringHashMap(rl.Shader).init(gpa),
         .jsons = std.StringHashMap(map_loader.ParsedLayer).init(gpa),
         .gpa = gpa,
+        .debug = false,
     };
 }
 

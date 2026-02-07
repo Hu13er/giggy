@@ -11,9 +11,3 @@ pub const Archetype = archetype.Archetype;
 pub const Entity = archetype.Entity;
 pub const CommandBuffer = command_buffer.CommandBuffer;
 pub const World = world.World;
-
-pub const SystemCtx = struct {
-    world: *World,
-    cb: *CommandBuffer,
-    dt: f32,
-};
