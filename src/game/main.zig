@@ -13,7 +13,6 @@ pub fn main() !void {
     defer rl.CloseWindow();
     const hz = rl.GetMonitorRefreshRate(rl.GetCurrentMonitor());
     rl.SetTargetFPS(hz);
-    // rl.SetTargetFPS(160);
 
     // init ecs
     const allocator = std.heap.c_allocator;
@@ -59,8 +58,8 @@ pub fn main() !void {
         comps.Rotation{ .teta = 0 },
         comps.Model3D{ .name = "greenman", .render_texture = 0, .mesh = 0, .material = 1 },
         comps.RenderInto{ .into = "player" },
-        comps.Animation{ .index = 0, .frame = 0 },
-        comps.MoveAnimation{ .idle = 0, .run = 2 },
+        comps.Animation{ .index = 0, .frame = 0, .acc = 0, .speed = 0 },
+        comps.MoveAnimation{ .idle = 0, .run = 2, .speed = 200.0 },
     });
 
     const lvl1 = resc.jsons.get("level1").?;
@@ -103,35 +102,49 @@ pub fn main() !void {
     var command_buffer = try ecs.CommandBuffer.init(allocator);
     var to_render = try systems.RenderableList.initCapacity(allocator, 4);
     defer to_render.deinit(allocator);
+
+    const fixed_dt = @as(f32, 1) / 60.0;
+    var accumulator: f32 = 0;
     // main loop
     while (!rl.WindowShouldClose()) {
-        const dt = rl.GetFrameTime();
-        const ctx = SystemCtx{
+        const frame_dt = rl.GetFrameTime();
+        accumulator += frame_dt;
+
+        const frame_ctx = SystemCtx{
             .resc = &resc,
             .world = &world,
             .cb = &command_buffer,
-            .dt = dt,
+            .dt = frame_dt,
         };
+        systems.playerInput(frame_ctx, player);
+        const debug = systems.updateDebugMode(frame_ctx);
 
-        const debug = systems.updateDebugMode(ctx);
-        systems.playerInput(ctx, player);
-        systems.updatePositions(ctx);
-        systems.cameraOnObject(ctx, &camera, player);
-        systems.animateMovingObjects(ctx);
-        systems.upldate3dModelAnimations(ctx);
-        systems.render3dModels(ctx);
+        while (accumulator >= fixed_dt) : (accumulator -= fixed_dt) {
+            const sim_ctx = SystemCtx{
+                .resc = &resc,
+                .world = &world,
+                .cb = &command_buffer,
+                .dt = fixed_dt,
+            };
+            systems.updatePositions(sim_ctx);
+            systems.playMovingsAnim(sim_ctx);
+        }
+
+        systems.cameraOnObject(frame_ctx, &camera, player);
+        systems.upldate3dModelAnimations(frame_ctx);
+        systems.render3dModels(frame_ctx);
 
         rl.BeginDrawing();
         rl.ClearBackground(rl.GRAY);
         rl.BeginMode2D(camera);
         // render main scene
-        systems.renderBackground(ctx, "map");
-        try systems.collectRenderables(ctx, allocator, &to_render);
-        systems.renderRenderables(ctx, &to_render);
+        systems.renderBackground(frame_ctx, "map");
+        try systems.collectRenderables(frame_ctx, allocator, &to_render);
+        systems.renderRenderables(frame_ctx, &to_render);
         to_render.items.len = 0;
         if (debug) {
-            systems.renderBoxes(ctx);
-            systems.renderColliders(ctx);
+            systems.renderBoxes(frame_ctx);
+            systems.renderColliders(frame_ctx);
         }
         rl.EndMode2D();
         // render gui

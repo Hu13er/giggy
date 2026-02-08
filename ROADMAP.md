@@ -37,11 +37,11 @@ Either way: simulation must be cleanly separated from presentation; inputs shoul
 
 ### Controller-First Details
 
-- Do you want independent aim (right stick) + move (left stick) like Hades?
+- Independent aim (right stick) + move (left stick) like Hades?
 - How much aim assist (cone, snap-to-target, stick deadzones)?
 - UI navigation must be focus-based from day 1 (no mouse-only tools as the only option).
 
-## Roadmap (Phased)
+## Roadmap
 
 ### Milestone 0: Stabilize The Foundation (1-3 sessions)
 

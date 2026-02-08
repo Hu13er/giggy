@@ -20,8 +20,8 @@ pub fn playerInput(ctx: SystemCtx, player: ecs.Entity) void {
     }
     const l = std.math.sqrt(x * x + y * y);
     if (l > 0.1) {
-        x = x / l * 100.0;
-        y = y / l * 100.0;
+        x = x / l * 250.0;
+        y = y / l * 250.0;
 
         const angle = std.math.atan2(y, -x);
         rot.teta.* = std.math.radiansToDegrees(angle) - 45.0;
@@ -62,16 +62,20 @@ pub fn checkEdgeCollision(ctx: SystemCtx, x: f32, y: f32, r: f32) bool {
     return false;
 }
 
-pub fn animateMovingObjects(ctx: SystemCtx) void {
+pub fn playMovingsAnim(ctx: SystemCtx) void {
     var it = ctx.world.query(&[_]type{ comps.Animation, comps.Velocity, comps.MoveAnimation });
     while (it.next()) |_| {
         const av = it.get(comps.AnimationView);
         const vv = it.get(comps.VelocityView);
         const mav = it.get(comps.MoveAnimationView);
-        if (@abs(vv.x.*) > 0.1 or @abs(vv.y.*) > 0.1) {
-            av.index.* = mav.run.*;
-        } else {
-            av.index.* = mav.idle.*;
+        const new_anim = if (@abs(vv.x.*) > 0.1 or @abs(vv.y.*) > 0.1)
+            mav.run.*
+        else
+            mav.idle.*;
+        if (new_anim != av.index.*) {
+            av.index.* = new_anim;
+            av.frame.* = 0;
+            av.speed.* = mav.speed.*;
         }
     }
 }
@@ -107,8 +111,13 @@ pub fn upldate3dModelAnimations(ctx: SystemCtx) void {
 
         const model = ctx.resc.models.getPtr(mv.name.*).?;
         const frame_count = @as(usize, @intCast(model.animations[am.index.*].frameCount));
-        const new_current = (am.frame.* + 1) % frame_count;
+        const max_acc = @as(f32, @floatFromInt(frame_count)) / am.speed.*;
+
+        am.acc.* += ctx.dt;
+        while (am.acc.* > max_acc) : (am.acc.* -= max_acc) {}
+        const new_current = @as(usize, @intFromFloat(am.acc.* * am.speed.*)) % frame_count;
         am.frame.* = new_current;
+
         rl.UpdateModelAnimationBones(
             model.model,
             model.animations[am.index.*],

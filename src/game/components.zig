@@ -20,17 +20,6 @@ pub const VelocityView = struct {
     y: *f32,
 };
 
-pub const Circle = struct {
-    color: rl.Color,
-    r: f32,
-};
-
-pub const CircleView = struct {
-    pub const Of = Circle;
-    color: *rl.Color,
-    r: *f32,
-};
-
 pub const Model3D = struct {
     name: []const u8,
     mesh: usize,
@@ -48,24 +37,30 @@ pub const Model3DView = struct {
 
 pub const Animation = struct {
     index: usize,
+    speed: f32,
     frame: usize,
+    acc: f32,
 };
 
 pub const AnimationView = struct {
     pub const Of = Animation;
     index: *usize,
+    speed: *f32,
     frame: *usize,
+    acc: *f32,
 };
 
 pub const MoveAnimation = struct {
     idle: usize,
     run: usize,
+    speed: f32,
 };
 
 pub const MoveAnimationView = struct {
     pub const Of = MoveAnimation;
     idle: *usize,
     run: *usize,
+    speed: *f32,
 };
 
 pub const Rotation = struct {
