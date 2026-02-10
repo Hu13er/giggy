@@ -19,7 +19,7 @@
          "name":"wall2",
          "offsetx":0.757116898849176,
          "offsety":579.951544518474,
-         "opacity":1,
+         "opacity":0,
          "properties":[
                 {
                  "name":"index",
@@ -80,7 +80,7 @@
          "imagewidth":1024,
          "locked":true,
          "name":"background",
-         "opacity":0,
+         "opacity":0.53,
          "properties":[
                 {
                  "name":"index",
@@ -272,6 +272,38 @@
                  "width":0,
                  "x":306.957708049113,
                  "y":513.456529827608
+                }, 
+                {
+                 "height":0,
+                 "id":16,
+                 "name":"edge",
+                 "polygon":[
+                        {
+                         "x":0,
+                         "y":0
+                        }, 
+                        {
+                         "x":192,
+                         "y":0
+                        }, 
+                        {
+                         "x":32,
+                         "y":64
+                        }, 
+                        {
+                         "x":192,
+                         "y":96
+                        }, 
+                        {
+                         "x":0,
+                         "y":96
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":0,
+                 "x":64,
+                 "y":448
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -280,7 +312,7 @@
          "y":0
         }],
  "nextlayerid":9,
- "nextobjectid":14,
+ "nextobjectid":17,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.11.2",
