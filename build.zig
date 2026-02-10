@@ -53,6 +53,7 @@ pub fn build(b: *std.Build) void {
 
     const examples_step = b.step("examples", "Build all examples");
     addExample(b, engine_mod, target, optimize, use_system_raylib, "blob", "src/examples/blob/main.zig", examples_step);
+    addExample(b, engine_mod, target, optimize, use_system_raylib, "ecs-stress", "src/examples/ecs_stress/main.zig", examples_step);
 }
 
 /// Probe pkg-config to see if raylib is installed system-wide.
