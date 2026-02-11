@@ -1,23 +1,38 @@
 pub fn playerInput(ctx: SystemCtx, player: ecs.Entity) void {
     const vel = ctx.world.get(comps.VelocityView, player).?;
     const rot = ctx.world.get(comps.RotationView, player).?;
-
     var x: f32 = 0;
     var y: f32 = 0;
+
     if (rl.IsKeyDown(rl.KEY_D)) {
         x = 10;
     } else if (rl.IsKeyDown(rl.KEY_A)) {
         x = -10;
-    } else {
-        x = 0;
     }
     if (rl.IsKeyDown(rl.KEY_W)) {
         y = -10;
     } else if (rl.IsKeyDown(rl.KEY_S)) {
         y = 10;
-    } else {
-        y = 0;
     }
+
+    if (rl.IsGamepadAvailable(0)) {
+        var gx = rl.GetGamepadAxisMovement(0, rl.GAMEPAD_AXIS_LEFT_X);
+        var gy = rl.GetGamepadAxisMovement(0, rl.GAMEPAD_AXIS_LEFT_Y);
+        const deadzone: f32 = 0.2;
+        if (@abs(gx) < deadzone) gx = 0;
+        if (@abs(gy) < deadzone) gy = 0;
+
+        if (rl.IsGamepadButtonDown(0, rl.GAMEPAD_BUTTON_LEFT_FACE_LEFT)) gx = -1;
+        if (rl.IsGamepadButtonDown(0, rl.GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) gx = 1;
+        if (rl.IsGamepadButtonDown(0, rl.GAMEPAD_BUTTON_LEFT_FACE_UP)) gy = -1;
+        if (rl.IsGamepadButtonDown(0, rl.GAMEPAD_BUTTON_LEFT_FACE_DOWN)) gy = 1;
+
+        if (@abs(gx) > 0 or @abs(gy) > 0) {
+            x = gx;
+            y = gy;
+        }
+    }
+
     const l = std.math.sqrt(x * x + y * y);
     if (l > 0.1) {
         x = x / l * 250.0;
