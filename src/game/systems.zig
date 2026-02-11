@@ -39,15 +39,17 @@ pub fn updatePositions(ctx: SystemCtx) void {
         pos.prev_x.* = pos.x.*;
         pos.prev_y.* = pos.y.*;
 
-        const new_x = pos.x.* + ctx.dt * vel.x.*;
-        const new_y = pos.y.* + ctx.dt * vel.y.*;
+        var new_pos = xmath.Vec2{
+            .x = pos.x.* + ctx.dt * vel.x.*,
+            .y = pos.y.* + ctx.dt * vel.y.*,
+        };
 
         if (it.getOrNull(comps.ColliderCircleView)) |collider| {
-            if (checkEdgeCollision(ctx, new_x, new_y, collider.radius.*)) continue;
+            pushFromEdges(ctx, &new_pos, collider.radius.*);
         }
 
-        pos.x.* = new_x;
-        pos.y.* = new_y;
+        pos.x.* = new_pos.x;
+        pos.y.* = new_pos.y;
     }
 }
 
@@ -63,6 +65,23 @@ pub fn updateRotations(ctx: SystemCtx) void {
         if (delta > max_step) delta = max_step;
         if (delta < -max_step) delta = -max_step;
         rot.teta.* += delta;
+    }
+}
+
+pub fn pushFromEdges(ctx: SystemCtx, pos: *xmath.Vec2, r: f32) void {
+    var it = ctx.world.query(&[_]type{comps.Line});
+    while (it.next()) |_| {
+        const line = it.get(comps.LineView);
+        const a = xmath.Vec2{ .x = line.x0.*, .y = line.y0.* };
+        const b = xmath.Vec2{ .x = line.x1.*, .y = line.y1.* };
+        if (!rl.CheckCollisionCircleLine(
+            pos.asRl(),
+            r,
+            a.asRl(),
+            b.asRl(),
+        )) continue;
+        const dist = xmath.pushFromLine(pos.*, a, b, r);
+        pos.* = pos.*.add(dist);
     }
 }
 
@@ -356,8 +375,10 @@ fn lerpAngleDeg(a: f32, b: f32, t: f32) f32 {
 const std = @import("std");
 const mem = std.mem;
 
-const rl = @import("engine").rl;
-const ecs = @import("engine").ecs;
+const engine = @import("engine");
+const rl = engine.rl;
+const ecs = engine.ecs;
+const xmath = engine.math;
 
 const comps = @import("components.zig");
 const Rescources = @import("resources.zig");
