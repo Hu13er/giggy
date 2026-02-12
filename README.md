@@ -77,3 +77,13 @@ $ zig zen
  * Memory is a resource.
  * Together we serve the users.
 ```
+
+---
+
+## License
+
+Source code is licensed under Apache-2.0 (see `LICENSE`).
+
+Third-party dependencies/assets may be under their own licenses (for example `resources/gltf/LICENSE`).
+
+This project uses raylib (zlib/libpng license). If you redistribute builds that include raylib, include raylib's license text alongside your third-party notices.
