@@ -68,6 +68,7 @@ pub const Field = struct {
     // Assumes that @mod(buffer.items.len, self.meta.size) == 0
     pub fn remove(self: *Self, index: usize) void {
         if (self.buffer.items.len < self.meta.size) return; // empty
+        assert(index < self.len());
         if (self.buffer.items.len > self.meta.size) {
             // swap with last
             const start = index * self.meta.size;
