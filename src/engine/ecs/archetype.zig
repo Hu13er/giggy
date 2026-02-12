@@ -84,11 +84,7 @@ pub const Archetype = struct {
             }
 
             pub fn dejoin(self: *const MetaSelf, gpa: mem.Allocator, with: StaticMeta) !OwnedMeta {
-                var out = try std.ArrayList(*const MultiField.Meta).initCapacity(gpa, blk: {
-                    if (self.components.len < with.components.len)
-                        break :blk self.components.len;
-                    break :blk self.components.len - with.components.len;
-                });
+                var out = try std.ArrayList(*const MultiField.Meta).initCapacity(gpa, self.components.len);
                 errdefer out.deinit(gpa);
 
                 const j_comp = with.components;
