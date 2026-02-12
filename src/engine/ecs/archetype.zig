@@ -435,7 +435,7 @@ pub const Archetype = struct {
     }
 
     pub fn at(self: *const Self, comptime View: type, index: usize) View {
-        assert(0 <= index and index < self.len());
+        assert(index < self.len());
 
         const view_ti = @typeInfo(View);
         if (view_ti != .@"struct")
@@ -466,7 +466,7 @@ pub const Archetype = struct {
     }
 
     pub fn atAuto(self: *const Self, comptime C: type, index: usize) util.ViewOf(C) {
-        assert(0 <= index and index < self.len());
+        assert(index < self.len());
 
         const ti = @typeInfo(C);
         if (ti != .@"struct")
