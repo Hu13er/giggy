@@ -65,7 +65,7 @@ pub const Field = struct {
     }
 
     // remove `index` from field
-    // Assums that @mod(buffer.items.len, self.meta.size) == 0
+    // Assumes that @mod(buffer.items.len, self.meta.size) == 0
     pub fn remove(self: *Self, index: usize) void {
         if (self.buffer.items.len < self.meta.size) return; // empty
         if (self.buffer.items.len > self.meta.size) {
