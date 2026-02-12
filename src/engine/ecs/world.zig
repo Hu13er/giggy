@@ -282,9 +282,20 @@ pub const World = struct {
     }
 
     pub fn freeEmptyArchetypes(self: *Self) void {
+        // Collect empty archetype hashes first; removing during iteration can invalidate the iterator.
+        var to_remove = std.ArrayList(u64).init(self.gpa);
+        defer to_remove.deinit();
         var it = self.archetypes.iterator();
-        while (it.next()) |entry|
-            _ = self.removeArchetypeIfEmpty(entry);
+        while (it.next()) |entry| {
+            if (entry.value_ptr.len() == 0) {
+                to_remove.append(entry.key_ptr.*) catch return;
+            }
+        }
+        for (to_remove.items) |hash| {
+            if (self.archetypes.fetchRemove(hash)) |kv| {
+                kv.value.deinit(self.gpa);
+            }
+        }
     }
 
     fn getOrCreateArchetype(self: *Self, meta: Archetype.StaticMeta) !*Archetype {
