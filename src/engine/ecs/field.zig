@@ -99,6 +99,7 @@ pub const Field = struct {
     }
 
     pub inline fn atRaw(self: *const Self, index: usize) []u8 {
+        assert(index < self.len());
         const start = index * self.meta.size;
         return self.buffer.items[start .. start + self.meta.size];
     }
