@@ -18,7 +18,7 @@ pub const CommandBuffer = struct {
     const Command = struct {
         tag: Tag,
         entity: Entity,
-        meta: ?*const Archetype.StaticMeta,
+        meta: ?Archetype.StaticMeta,
         offset: usize,
         size: usize,
     };
@@ -57,7 +57,7 @@ pub const CommandBuffer = struct {
         try self.commands.append(self.gpa, Command{
             .tag = .spawn,
             .entity = entity,
-            .meta = &meta,
+            .meta = meta,
             .offset = before_size,
             .size = payload_size,
         });
@@ -94,7 +94,7 @@ pub const CommandBuffer = struct {
         try self.commands.append(self.gpa, Command{
             .tag = .assign,
             .entity = entity,
-            .meta = &meta,
+            .meta = meta,
             .offset = before_size,
             .size = payload_size,
         });
@@ -110,7 +110,7 @@ pub const CommandBuffer = struct {
         try self.commands.append(self.gpa, Command{
             .tag = .unassign,
             .entity = entity,
-            .meta = &meta,
+            .meta = meta,
             .offset = offset,
             .size = 0,
         });
@@ -122,7 +122,7 @@ pub const CommandBuffer = struct {
                 .spawn => {
                     const meta = cmd.meta.?;
                     const bytes = self.bytes.items[cmd.offset .. cmd.offset + cmd.size];
-                    try world_ref.spawnBytes(cmd.entity, meta, bytes);
+                    try world_ref.spawnBytes(cmd.entity, &meta, bytes);
                 },
                 .despawn => {
                     _ = world_ref.despawn(cmd.entity);
@@ -130,11 +130,11 @@ pub const CommandBuffer = struct {
                 .assign => {
                     const meta = cmd.meta.?;
                     const bytes = self.bytes.items[cmd.offset .. cmd.offset + cmd.size];
-                    try world_ref.assignBytes(cmd.entity, meta, bytes);
+                    try world_ref.assignBytes(cmd.entity, &meta, bytes);
                 },
                 .unassign => {
                     const meta = cmd.meta.?;
-                    try world_ref.unassignMeta(cmd.entity, meta);
+                    try world_ref.unassignMeta(cmd.entity, &meta);
                 },
             }
         }
