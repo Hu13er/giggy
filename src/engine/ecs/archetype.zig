@@ -424,6 +424,7 @@ pub const Archetype = struct {
     }
 
     pub fn pop(self: *Self) Entity {
+        assert(self.len() > 0);
         return self.remove(self.len() - 1);
     }
 
