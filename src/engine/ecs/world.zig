@@ -95,13 +95,14 @@ pub const World = struct {
 
         assert(dst_meta.components.len == src_meta.components.len + Ts.len);
 
-        const before_size = dst_arch.len();
-        errdefer dst_arch.setComponentsSize(before_size);
-
         const dst_index = try dst_arch.appendEntity(self.gpa, entity);
-        errdefer _ = dst_arch.removeEntity(dst_index);
+        var row_filled = false;
+        errdefer {
+            if (row_filled) _ = dst_arch.remove(dst_index) else _ = dst_arch.removeEntity(dst_index);
+        }
 
         try dst_arch.appendPartial(self.gpa, new_components);
+        row_filled = true;
 
         for (dst_meta.components, 0..) |comp, dst_idx| {
             if (src_arch.indexOfCID(comp.cid)) |src_idx| {
@@ -146,7 +147,12 @@ pub const World = struct {
         try dst_arch.appendPartialBytes(self.gpa, new_meta.*, bytes);
 
         const dst_index = try dst_arch.appendEntity(self.gpa, entity);
-        errdefer _ = dst_arch.removeEntity(dst_index);
+        var row_filled = false;
+        errdefer {
+            if (row_filled) _ = dst_arch.remove(dst_index) else _ = dst_arch.removeEntity(dst_index);
+        }
+
+        row_filled = true;
 
         for (dst_meta.components, 0..) |comp, dst_idx| {
             if (src_arch.indexOfCID(comp.cid)) |src_idx| {
@@ -188,11 +194,13 @@ pub const World = struct {
 
         assert(src_meta.components.len == dst_meta.components.len + Ts.len);
 
-        const before_size = dst_arch.len();
-        errdefer dst_arch.setComponentsSize(before_size);
-
         const dst_index = try dst_arch.appendEntity(self.gpa, entity);
-        errdefer _ = dst_arch.removeEntity(dst_index);
+        var row_filled = false;
+        errdefer {
+            if (row_filled) _ = dst_arch.remove(dst_index) else _ = dst_arch.removeEntity(dst_index);
+        }
+
+        row_filled = true;
 
         var c: usize = 0;
         for (dst_meta.components, 0..) |comp, dst_idx| {
@@ -232,11 +240,13 @@ pub const World = struct {
 
         assert(src_meta.components.len == dst_meta.components.len + rm_meta.components.len);
 
-        const before_size = dst_arch.len();
-        errdefer dst_arch.setComponentsSize(before_size);
-
         const dst_index = try dst_arch.appendEntity(self.gpa, entity);
-        errdefer _ = dst_arch.removeEntity(dst_index);
+        var row_filled = false;
+        errdefer {
+            if (row_filled) _ = dst_arch.remove(dst_index) else _ = dst_arch.removeEntity(dst_index);
+        }
+
+        row_filled = true;
 
         for (dst_meta.components, 0..) |comp, dst_idx| {
             const src_idx = src_arch.indexOfCID(comp.cid).?;
