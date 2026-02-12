@@ -9,19 +9,16 @@ pub const MultiField = struct {
         fields: []const Field.Meta,
 
         pub inline fn from(comptime T: type) *const Meta {
+            util.assertComponent(T);
             return &struct {
-                pub const v: Meta = meta_blk: {
-                    util.assertComponent(T);
-                    const cid = util.cidOf(T);
-                    const ti = @typeInfo(T);
-                    const l = ti.@"struct".fields.len;
-                    const fs = fs_blk: {
-                        var tmp: [l]Field.Meta = undefined;
-                        for (0..l) |i| tmp[i] = Field.Meta.fromStruct(T, i).*;
-                        break :fs_blk tmp;
-                    };
-                    break :meta_blk .{ .cid = cid, .fields = &fs };
+                const cid = util.cidOf(T);
+                const l = @typeInfo(T).@"struct".fields.len;
+                const fs: [l]Field.Meta = blk: {
+                    var tmp: [l]Field.Meta = undefined;
+                    for (0..l) |i| tmp[i] = Field.Meta.fromStruct(T, i).*;
+                    break :blk tmp;
                 };
+                pub const v: Meta = .{ .cid = cid, .fields = &fs };
             }.v;
         }
 
