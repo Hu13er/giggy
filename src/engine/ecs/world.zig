@@ -44,7 +44,11 @@ pub const World = struct {
         return e;
     }
 
+    pub const EntityAlreadyExists = error{EntityAlreadyExists};
+
     pub fn spawnBytes(self: *Self, entity: Entity, meta: *const Archetype.StaticMeta, bytes: []const u8) !void {
+        if (self.entity_archetype.contains(entity))
+            return error.EntityAlreadyExists;
         var arch = try self.getOrCreateArchetype(meta.*);
         try arch.appendBytes(self.gpa, entity, bytes);
         try self.entity_archetype.put(entity, arch.hash);
