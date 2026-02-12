@@ -253,19 +253,21 @@ pub const Archetype = struct {
         next_index: usize,
 
         pub fn next(self: *Iterator) ?Entity {
-            if (self.next_index >= self.archetype.len())
+            if (self.next_index >= self.archetype.len()) {
+                self.next_index += 1; // Mark exhausted so get()/getAuto() fail
                 return null;
+            }
             self.next_index += 1;
             return self.archetype.entities.items[self.next_index - 1];
         }
 
         pub fn get(self: *const Iterator, comptime View: type) View {
-            assert(self.next_index > 0);
+            assert(self.next_index > 0 and self.next_index <= self.archetype.len());
             return self.archetype.at(View, self.next_index - 1);
         }
 
         pub fn getAuto(self: *const Iterator, comptime C: type) util.ViewOf(C) {
-            assert(self.next_index > 0);
+            assert(self.next_index > 0 and self.next_index <= self.archetype.len());
             return self.archetype.atAuto(C, self.next_index - 1);
         }
     };
