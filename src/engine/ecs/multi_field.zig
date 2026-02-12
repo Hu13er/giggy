@@ -139,7 +139,9 @@ pub const MultiField = struct {
     }
 
     pub fn pop(self: *Self) void {
-        self.remove(self.len() - 1);
+        const n = self.len();
+        if (n == 0) return;
+        self.remove(n - 1);
     }
 
     pub fn len(self: *const Self) usize {
