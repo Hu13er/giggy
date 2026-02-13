@@ -11,7 +11,7 @@
   "shaders": {
     "skinning": {
       "vs": "resources/shaders/glsl330/skinning.vs",
-      "fs": "resources/shaders/glsl330/skinning.vs"
+      "fs": "resources/shaders/glsl330/skinning.fs"
     }
   }
 }
