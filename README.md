@@ -1,7 +1,7 @@
 Giggy
 =====
 
-A handcrafted ECS in Zig, built the hard way while making a fun game (hopefully).
+A handcrafted ECS in Zig, built the hard way while making a fun game (hopefully). Heavily inspired by [Bevy](https://github.com/bevyengine/bevy).
 
 This ECS uses:
 - Archetype-based storage

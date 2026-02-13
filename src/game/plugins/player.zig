@@ -24,15 +24,6 @@ pub const PlayerPlugin = struct {
     }
 };
 
-const engine = @import("engine");
-const core = engine.core;
-const rl = engine.rl;
-const xmath = engine.math;
-const ecs = engine.ecs;
-
-const comps = @import("../components.zig");
-const resources = @import("../resources.zig");
-
 fn playerInput(app: *core.App) !void {
     const world = &app.world;
     const player = app.getResource(resources.Player).?.entity;
@@ -195,3 +186,11 @@ fn interpolatedPositionY(pos: comps.PositionView, alpha: f32) f32 {
 }
 
 const std = @import("std");
+const engine = @import("engine");
+const core = engine.core;
+const rl = engine.rl;
+const xmath = engine.math;
+const ecs = engine.ecs;
+
+const comps = @import("../components.zig");
+const resources = @import("../resources.zig");

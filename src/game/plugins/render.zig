@@ -13,16 +13,6 @@ pub const RenderPlugin = struct {
     }
 };
 
-const engine = @import("engine");
-const core = engine.core;
-const rl = engine.rl;
-
-const ecs = engine.ecs;
-
-const comps = @import("../components.zig");
-const resources = @import("../resources.zig");
-const renderables = @import("render/renderables.zig");
-
 fn update3dModelAnimations(app: *core.App) !void {
     const time = app.getResource(core.Time).?;
     const assets = app.getResource(engine.assets.AssetManager).?;
@@ -255,8 +245,6 @@ const camera3d = rl.Camera3D{
     .projection = rl.CAMERA_ORTHOGRAPHIC,
 };
 
-const std = @import("std");
-
 fn interpolatedPositionX(pos: comps.PositionView, alpha: f32) f32 {
     return engine.math.lerp(pos.prev_x.*, pos.x.*, alpha);
 }
@@ -268,3 +256,14 @@ fn interpolatedPositionY(pos: comps.PositionView, alpha: f32) f32 {
 fn interpolatedRotation(rot: comps.RotationView, alpha: f32) f32 {
     return engine.math.lerpAngleDeg(rot.prev_teta.*, rot.teta.*, alpha);
 }
+
+const std = @import("std");
+
+const engine = @import("engine");
+const core = engine.core;
+const rl = engine.rl;
+const ecs = engine.ecs;
+
+const comps = @import("../components.zig");
+const resources = @import("../resources.zig");
+const renderables = @import("render/renderables.zig");

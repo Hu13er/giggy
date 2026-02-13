@@ -8,17 +8,6 @@ pub const LevelPlugin = struct {
     }
 };
 
-const std = @import("std");
-const mem = std.mem;
-const json = std.json;
-
-const engine = @import("engine");
-const core = engine.core;
-
-const ecs = engine.ecs;
-
-const comps = @import("../components.zig");
-
 fn registerPrefabs(registry: *engine.prefabs.Registry) !void {
     try registry.register("wall1", makeImageFactory("wall1"));
     try registry.register("wall2", makeImageFactory("wall2"));
@@ -140,3 +129,14 @@ const Point = struct {
     x: f32,
     y: f32,
 };
+
+const std = @import("std");
+const mem = std.mem;
+const json = std.json;
+
+const engine = @import("engine");
+const core = engine.core;
+
+const ecs = engine.ecs;
+
+const comps = @import("../components.zig");
