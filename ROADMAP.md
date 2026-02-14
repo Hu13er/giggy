@@ -46,13 +46,13 @@ Either way: simulation must be cleanly separated from presentation; inputs shoul
 
 ### Milestone 0: Stabilize The Foundation (1-3 sessions)
 
-[X] Establish simulation tick discipline:
+- [x] Establish simulation tick discipline:
   - fixed timestep for simulation
   - variable timestep for rendering
-[X] DAG scheduler with labels + optional IDs:
+- [x] DAG scheduler with labels + optional IDs:
   - per-step dependency graph + topo sort
   - early errors for cycles or missing required deps
-[ ] Refactor and cleaning current plugins (components & systems)
+- [ ] Refactor and cleaning current plugins (components & systems)
   - well-defined compontents and resources
   - proper system dependencies
 
@@ -60,24 +60,24 @@ Either way: simulation must be cleanly separated from presentation; inputs shoul
 
 Goal: author rooms quickly and iterate without code changes.
 
-[X] Data-driven prefabs: enemies/props defined by data (stats, animations, hitboxes, drops).
-[X] Room format (recommend: Tiled/LDtk): spawns, collision, waves, exits, rewards.
-[X] Room manager: load/unload room entities; transitions; keep player persistent.
-[ ] Game object plugins: colliders, spawners, etc.
-[ ] Optional but high ROI: hot-reload JSON/data during runtime for fast iteration.
+- [x] Data-driven prefabs: enemies/props defined by data (stats, animations, hitboxes, drops).
+- [x] Room format (recommend: Tiled/LDtk): spawns, collision, waves, exits, rewards.
+- [x] Room manager: load/unload room entities; transitions; keep player persistent.
+- [ ] Game object plugins: colliders, spawners, etc.
+- [ ] Optional but high ROI: hot-reload JSON/data during runtime for fast iteration.
 
 ### Milestone 2: Combat Vertical Slice (First Fun)
 
 Goal: one room you can clear with good feel.
 
-[ ] Player verbs: move, dash (i-frames + cooldown), primary attack, special, cast/projectile.
-[ ] Core combat components/systems:
+- [ ] Player verbs: move, dash (i-frames + cooldown), primary attack, special, cast/projectile.
+- [ ] Core combat components/systems:
   - `Health`, `Damage`, `Faction/Team`
   - `Hitbox`/`Hurtbox`
   - `Invulnerable`, `Knockback`, `Status`
-[ ] Minimal enemy AI loop: idle -> chase -> attack -> recover; spawn a few enemies.
-[ ] Centralize hit resolution (events/commands) so combat is deterministic-ish and debuggable.
-[ ] Controller-first:
+- [ ] Minimal enemy AI loop: idle -> chase -> attack -> recover; spawn a few enemies.
+- [ ] Centralize hit resolution (events/commands) so combat is deterministic-ish and debuggable.
+- [ ] Controller-first:
   - left-stick move, right-stick aim
   - aim assist + target selection rules
   - rumble + hit-stop as feedback events (presentation-only)
