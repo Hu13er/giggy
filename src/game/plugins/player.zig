@@ -17,14 +17,14 @@ pub const PlayerPlugin = struct {
         _ = try app.insertResource(resources.Player, .{ .entity = player });
 
         try app.addSystem(.update, PlayerInputSystem);
-        try app.addSystem(.fixed_update, UpdatePositionsSystem);
-        try app.addSystem(.fixed_update, UpdateRotationsSystem);
         try app.addSystem(.fixed_update, PlayMovingsAnimSystem);
         try app.addSystem(.update, CameraOnObjectSystem);
     }
 };
 
 const PlayerInputSystem = struct {
+    pub const provides: []const []const u8 = &.{"input"};
+
     pub fn run(app: *core.App) !void {
         const world = &app.world;
         const player = app.getResource(resources.Player).?.entity;
@@ -72,67 +72,6 @@ const PlayerInputSystem = struct {
         }
         vel.x.* = x;
         vel.y.* = y;
-    }
-};
-
-const UpdatePositionsSystem = struct {
-    pub fn run(app: *core.App) !void {
-        const time = app.getResource(core.Time).?;
-        var it = app.world.query(&[_]type{ comps.Position, comps.Velocity });
-        while (it.next()) |_| {
-            const pos = it.get(comps.PositionView);
-            const vel = it.get(comps.VelocityView);
-
-            pos.prev_x.* = pos.x.*;
-            pos.prev_y.* = pos.y.*;
-
-            var new_pos = xmath.Vec2{
-                .x = pos.x.* + time.dt * vel.x.*,
-                .y = pos.y.* + time.dt * vel.y.*,
-            };
-
-            if (it.getOrNull(comps.ColliderCircleView)) |collider| {
-                pushFromEdges(&app.world, &new_pos, collider.radius.*);
-            }
-
-            pos.x.* = new_pos.x;
-            pos.y.* = new_pos.y;
-        }
-    }
-
-    fn pushFromEdges(world: *ecs.World, pos: *xmath.Vec2, r: f32) void {
-        var it = world.query(&[_]type{comps.Line});
-        while (it.next()) |_| {
-            const line = it.get(comps.LineView);
-            const a = xmath.Vec2{ .x = line.x0.*, .y = line.y0.* };
-            const b = xmath.Vec2{ .x = line.x1.*, .y = line.y1.* };
-            if (!rl.CheckCollisionCircleLine(
-                pos.asRl(),
-                r,
-                a.asRl(),
-                b.asRl(),
-            )) continue;
-            const dist = xmath.pushFromLine(pos.*, a, b, r);
-            pos.* = pos.*.add(dist);
-        }
-    }
-};
-
-const UpdateRotationsSystem = struct {
-    pub fn run(app: *core.App) !void {
-        const time = app.getResource(core.Time).?;
-        var it = app.world.query(&[_]type{comps.Rotation});
-        while (it.next()) |_| {
-            const rot = it.get(comps.RotationView);
-
-            rot.prev_teta.* = rot.teta.*;
-
-            var delta = xmath.wrapAngleDeg(rot.target_teta.* - rot.teta.*);
-            const max_step = rot.turn_speed_deg.* * time.dt;
-            if (delta > max_step) delta = max_step;
-            if (delta < -max_step) delta = -max_step;
-            rot.teta.* += delta;
-        }
     }
 };
 

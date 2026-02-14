@@ -122,7 +122,7 @@ const Bundle = struct {
 };
 
 const LineBundle = struct {
-    line: comps.Line,
+    line: comps.ColliderLine,
 };
 
 const Point = struct {

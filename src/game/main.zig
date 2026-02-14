@@ -21,6 +21,7 @@ pub fn main() !void {
         .fixed_dt = 1.0 / 60.0,
     });
     try app.addPlugin(game_plugins.assets.AssetsPlugin, .{});
+    try app.addPlugin(game_plugins.physics.PhysicsPlugin, .{});
     try app.addPlugin(game_plugins.player.PlayerPlugin, .{});
     try app.addPlugin(game_plugins.level.LevelPlugin, .{
         .file_path = "tiled/objects.tmj",

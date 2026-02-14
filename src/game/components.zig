@@ -33,6 +33,21 @@ pub const ColliderCircleView = struct {
     radius: *f32,
 };
 
+pub const ColliderLine = struct {
+    x0: f32,
+    y0: f32,
+    x1: f32,
+    y1: f32,
+};
+
+pub const ColliderLineView = struct {
+    pub const Of = ColliderLine;
+    x0: *f32,
+    y0: *f32,
+    x1: *f32,
+    y1: *f32,
+};
+
 pub const Model3D = struct {
     name: []const u8,
     mesh: usize,
@@ -98,21 +113,6 @@ pub const Texture = struct {
 pub const TextureView = struct {
     pub const Of = Texture;
     name: *[]const u8,
-};
-
-pub const Line = struct {
-    x0: f32,
-    y0: f32,
-    x1: f32,
-    y1: f32,
-};
-
-pub const LineView = struct {
-    pub const Of = Line;
-    x0: *f32,
-    y0: *f32,
-    x1: *f32,
-    y1: *f32,
 };
 
 pub const WidthHeight = struct {

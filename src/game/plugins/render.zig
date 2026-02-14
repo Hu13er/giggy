@@ -13,31 +13,6 @@ pub const RenderPlugin = struct {
     }
 };
 
-const camera3d = rl.Camera3D{
-    .position = .{ .x = 3.0, .y = 3.0, .z = 3.0 },
-    .target = .{ .x = 0.0, .y = 1.0, .z = 0.0 },
-    .up = .{ .x = 0.0, .y = 1.0, .z = 0.0 },
-    .fovy = 3.0,
-    .projection = rl.CAMERA_ORTHOGRAPHIC,
-};
-
-fn interpolatedPositionX(pos: comps.PositionView, alpha: f32) f32 {
-    return engine.math.lerp(pos.prev_x.*, pos.x.*, alpha);
-}
-
-fn interpolatedPositionY(pos: comps.PositionView, alpha: f32) f32 {
-    return engine.math.lerp(pos.prev_y.*, pos.y.*, alpha);
-}
-
-fn interpolatedRotation(rot: comps.RotationView, alpha: f32) f32 {
-    return engine.math.lerpAngleDeg(rot.prev_teta.*, rot.teta.*, alpha);
-}
-
-const LabelRenderPrepass = "render.prepass";
-const LabelRenderBegin = "render.begin";
-const LabelRenderPass = "render.pass";
-const LabelRenderEnd = "render.end";
-
 const Update3dModelAnimationsSystem = struct {
     pub fn run(app: *core.App) !void {
         const time = app.getResource(core.Time).?;
@@ -253,9 +228,9 @@ const RenderDebugSystem = struct {
 
     fn renderColliders(app: *core.App) void {
         const time = app.getResource(core.Time).?;
-        var it = app.world.query(&[_]type{comps.Line});
+        var it = app.world.query(&[_]type{comps.ColliderLine});
         while (it.next()) |_| {
-            const line = it.get(comps.LineView);
+            const line = it.get(comps.ColliderLineView);
             const from: rl.Vector2 = .{ .x = line.x0.*, .y = line.y0.* };
             const to: rl.Vector2 = .{ .x = line.x1.*, .y = line.y1.* };
             rl.DrawLineEx(from, to, 4.0, rl.GREEN);
@@ -303,6 +278,31 @@ const ClearRenderablesSystem = struct {
         renderables_list.list.clearRetainingCapacity();
     }
 };
+
+const camera3d = rl.Camera3D{
+    .position = .{ .x = 3.0, .y = 3.0, .z = 3.0 },
+    .target = .{ .x = 0.0, .y = 1.0, .z = 0.0 },
+    .up = .{ .x = 0.0, .y = 1.0, .z = 0.0 },
+    .fovy = 3.0,
+    .projection = rl.CAMERA_ORTHOGRAPHIC,
+};
+
+fn interpolatedPositionX(pos: comps.PositionView, alpha: f32) f32 {
+    return engine.math.lerp(pos.prev_x.*, pos.x.*, alpha);
+}
+
+fn interpolatedPositionY(pos: comps.PositionView, alpha: f32) f32 {
+    return engine.math.lerp(pos.prev_y.*, pos.y.*, alpha);
+}
+
+fn interpolatedRotation(rot: comps.RotationView, alpha: f32) f32 {
+    return engine.math.lerpAngleDeg(rot.prev_teta.*, rot.teta.*, alpha);
+}
+
+const LabelRenderPrepass = "render.prepass";
+const LabelRenderBegin = "render.begin";
+const LabelRenderPass = "render.pass";
+const LabelRenderEnd = "render.end";
 
 const std = @import("std");
 
