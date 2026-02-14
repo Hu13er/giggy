@@ -7,13 +7,7 @@ pub const rl = @import("rl.zig").rl;
 pub const rm = @import("rl.zig").rm;
 
 test {
-    _ = core;
-    _ = ecs;
-    _ = assets;
-    _ = math;
-    _ = prefabs;
-    _ = rl;
-    _ = rm;
+    _ = std.testing.refAllDecls(@This());
 }
 
 const std = @import("std");

@@ -13,10 +13,7 @@ pub const CommandBuffer = command_buffer.CommandBuffer;
 pub const World = world.World;
 
 test {
-    _ = util;
-    _ = field;
-    _ = multi_field;
-    _ = archetype;
-    _ = world;
-    _ = command_buffer;
+    _ = std.testing.refAllDecls(@This());
 }
+
+const std = @import("std");

@@ -209,7 +209,7 @@ pub const Model = struct {
         };
     }
 
-    pub fn unload(self: *Model) void {
+    pub fn unload(self: *const Model) void {
         rl.UnloadModelAnimations(
             @ptrCast(self.animations.ptr),
             @intCast(self.animations.len),

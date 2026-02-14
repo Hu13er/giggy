@@ -8,7 +8,7 @@ pub const ResourceStore = resources.ResourceStore;
 pub const Time = app.Time;
 
 test {
-    _ = app;
-    _ = scheduler;
-    _ = resources;
+    _ = std.testing.refAllDecls(@This());
 }
+
+const std = @import("std");
