@@ -112,11 +112,13 @@ pub const RotationView = struct {
 
 pub const Texture = struct {
     name: []const u8,
+    z_index: i16,
 };
 
 pub const TextureView = struct {
     pub const Of = Texture;
     name: *[]const u8,
+    z_index: *i16,
 };
 
 pub const WidthHeight = struct {

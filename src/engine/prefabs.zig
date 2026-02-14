@@ -13,12 +13,13 @@ pub const Registry = struct {
 
     const Self = @This();
     pub const PrefabFactory = *const fn (
-        entity: ecs.Entity,
-        world: *ecs.World,
-        command_buffer: *CommandBuffer,
         gpa: mem.Allocator,
+        app: *core.App,
+        command_buffer: *CommandBuffer,
+        entity: ecs.Entity,
         object: json.Value,
     ) anyerror!void;
+
     pub const Error = error{
         DuplicatePrefab,
         InvalidTiledJson,
@@ -52,13 +53,13 @@ pub const Registry = struct {
         gop.value_ptr.* = factory;
     }
 
-    pub fn spawnFromTiledFile(self: *Self, world: *ecs.World, page_allocator: mem.Allocator, file_path: []const u8) !void {
+    pub fn spawnFromTiledFile(self: *Self, app: *core.App, page_allocator: mem.Allocator, file_path: []const u8) !void {
         var parsed = try loadTiledJson(page_allocator, file_path);
         defer parsed.deinit();
-        try self.spawnFromTiledValue(world, parsed.value);
+        try self.spawnFromTiledValue(app, parsed.value);
     }
 
-    pub fn spawnFromTiledValue(self: *Self, world: *ecs.World, map: json.Value) !void {
+    pub fn spawnFromTiledValue(self: *Self, app: *core.App, map: json.Value) !void {
         var cb = try CommandBuffer.init(self.gpa);
         defer cb.deinit();
 
@@ -93,19 +94,19 @@ pub const Registry = struct {
                         else => continue,
                     };
 
-                    const prefab_name = resolvePrefabName(object_obj) orelse continue;
+                    const prefab_name = resolvePrefabClass(object_obj) orelse continue;
                     const factory = self.factories.get(prefab_name) orelse continue;
-                    const e = world.reserveEntity();
-                    try factory(e, world, &cb, self.gpa, object_val);
+                    const e = app.world.reserveEntity();
+                    try factory(self.gpa, app, &cb, e, object_val);
                 }
             } else if (mem.eql(u8, layer_type, "imagelayer")) {
-                const prefab_name = resolvePrefabName(layer_obj) orelse continue;
+                const prefab_name = resolvePrefabClass(layer_obj) orelse continue;
                 const factory = self.factories.get(prefab_name) orelse continue;
-                const e = world.reserveEntity();
-                try factory(e, world, &cb, self.gpa, layer_val);
+                const e = app.world.reserveEntity();
+                try factory(self.gpa, app, &cb, e, layer_val);
             }
         }
-        try cb.flush(world);
+        try cb.flush(&app.world);
     }
 
     pub fn loadTiledJson(allocator: mem.Allocator, file_path: []const u8) !json.Parsed(json.Value) {
@@ -123,8 +124,8 @@ pub const Registry = struct {
         );
     }
 
-    fn resolvePrefabName(object_obj: json.ObjectMap) ?[]const u8 {
-        if (objectFieldString(object_obj, "name")) |value| {
+    fn resolvePrefabClass(object_obj: json.ObjectMap) ?[]const u8 {
+        if (objectFieldString(object_obj, "class")) |value| {
             if (value.len > 0) return value;
         }
         if (objectFieldString(object_obj, "type")) |value| {

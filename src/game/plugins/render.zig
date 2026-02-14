@@ -129,6 +129,7 @@ const CollectRenderablesSystem = struct {
                 .h = wh.h.*,
                 .flip_h = false,
                 .texture = texture.*,
+                .z_index = t.z_index.*,
             });
         }
         var it_render = app.world.query(&[_]type{ comps.Position, comps.RenderInto });
@@ -147,6 +148,7 @@ const CollectRenderablesSystem = struct {
                 .h = h,
                 .flip_h = true,
                 .texture = render_texture.texture,
+                .z_index = 0,
             });
         }
     }
@@ -162,6 +164,7 @@ const RenderRenderablesSystem = struct {
         const list = &renderables_list.list;
         std.sort.insertion(renderables.Renderable, list.items, {}, struct {
             fn lessThan(_: void, a: renderables.Renderable, b: renderables.Renderable) bool {
+                if (a.z_index < b.z_index) return true;
                 if (a.y + a.h < b.y + b.h) return true;
                 return false;
             }

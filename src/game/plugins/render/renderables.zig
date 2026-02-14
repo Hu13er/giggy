@@ -5,6 +5,7 @@ pub const Renderable = struct {
     h: f32,
     texture: rl.Texture,
     flip_h: bool,
+    z_index: i16,
 };
 
 pub const RenderableList = std.ArrayList(Renderable);

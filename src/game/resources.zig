@@ -15,6 +15,10 @@ pub const DebugState = struct {
     enabled: bool,
 };
 
+pub const Level = struct {
+    file_path: []const u8,
+};
+
 pub const RenderTargets = struct {
     render_textures: std.StringHashMap(rl.RenderTexture),
     gpa: mem.Allocator,

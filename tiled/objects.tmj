@@ -11,6 +11,7 @@
  "infinite":false,
  "layers":[
         {
+         "class":"layer",
          "id":8,
          "image":"..\/resources\/wall2.png",
          "imageheight":374,
@@ -19,7 +20,7 @@
          "name":"wall2",
          "offsetx":0.757116898849176,
          "offsety":579.951544518474,
-         "opacity":0,
+         "opacity":1,
          "properties":[
                 {
                  "name":"index",
@@ -32,15 +33,16 @@
          "y":0
         }, 
         {
+         "class":"layer",
          "id":7,
          "image":"..\/resources\/wall1.png",
          "imageheight":242,
          "imagewidth":108,
          "locked":true,
          "name":"wall1",
-         "offsetx":-0.0205935796486756,
-         "offsety":52.9049061175045,
-         "opacity":0,
+         "offsetx":0.979406420351324,
+         "offsety":50.9049061175045,
+         "opacity":0.99,
          "properties":[
                 {
                  "name":"index",
@@ -53,20 +55,25 @@
          "y":0
         }, 
         {
+         "class":"layer",
          "id":6,
          "image":"..\/resources\/abol.png",
          "imageheight":318,
          "imagewidth":283,
-         "locked":true,
          "name":"abol",
          "offsetx":343,
          "offsety":274,
-         "opacity":0,
+         "opacity":1,
          "properties":[
                 {
                  "name":"index",
                  "type":"int",
                  "value":1
+                }, 
+                {
+                 "name":"z_index",
+                 "type":"int",
+                 "value":0
                 }],
          "type":"imagelayer",
          "visible":true,
@@ -79,8 +86,8 @@
          "imageheight":1024,
          "imagewidth":1024,
          "locked":true,
-         "name":"background",
-         "opacity":0.53,
+         "name":"map",
+         "opacity":0.46,
          "properties":[
                 {
                  "name":"index",
@@ -94,57 +101,13 @@
         }, 
         {
          "draworder":"topdown",
-         "id":3,
-         "name":"banner",
-         "objects":[
-                {
-                 "height":315.639340195957,
-                 "id":6,
-                 "name":"abol",
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":280.912811608582,
-                 "x":343,
-                 "y":274
-                }, 
-                {
-                 "height":244.548758328286,
-                 "id":10,
-                 "name":"wall1",
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":110.539067231981,
-                 "x":0,
-                 "y":52.9981829194428
-                }, 
-                {
-                 "height":378,
-                 "id":11,
-                 "name":"wall2",
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":1008,
-                 "x":0,
-                 "y":576
-                }],
-         "opacity":1,
-         "type":"objectgroup",
-         "visible":true,
-         "x":0,
-         "y":0
-        }, 
-        {
-         "draworder":"topdown",
          "id":5,
          "name":"edge",
          "objects":[
                 {
                  "height":0,
                  "id":4,
-                 "name":"edge",
+                 "name":"walls",
                  "polygon":[
                         {
                          "x":0,
@@ -239,7 +202,7 @@
                          "y":-69.4530571747488
                         }],
                  "rotation":0,
-                 "type":"",
+                 "type":"edge",
                  "visible":true,
                  "width":0,
                  "x":0,
@@ -248,7 +211,7 @@
                 {
                  "height":0,
                  "id":5,
-                 "name":"edge",
+                 "name":"abol",
                  "polygon":[
                         {
                          "x":0,
@@ -267,7 +230,7 @@
                          "y":122.162966637728
                         }],
                  "rotation":0,
-                 "type":"",
+                 "type":"edge",
                  "visible":true,
                  "width":0,
                  "x":306.957708049113,
@@ -276,7 +239,7 @@
                 {
                  "height":0,
                  "id":16,
-                 "name":"edge",
+                 "name":"sigma",
                  "polygon":[
                         {
                          "x":0,
@@ -299,7 +262,7 @@
                          "y":96
                         }],
                  "rotation":0,
-                 "type":"",
+                 "type":"edge",
                  "visible":true,
                  "width":0,
                  "x":64,
