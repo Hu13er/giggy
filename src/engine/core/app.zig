@@ -2,6 +2,7 @@ pub const App = struct {
     world: ecs.World,
     resources: ResourceStore,
     scheduler: Scheduler,
+    plugin_set: std.StringHashMap(void),
     gpa: mem.Allocator,
 
     const Self = @This();
@@ -11,6 +12,7 @@ pub const App = struct {
             .world = try ecs.World.init(gpa),
             .resources = ResourceStore.init(gpa),
             .scheduler = Scheduler.init(gpa),
+            .plugin_set = std.StringHashMap(void).init(gpa),
             .gpa = gpa,
         };
         _ = try app.insertResource(Time, .init());
@@ -18,6 +20,7 @@ pub const App = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        self.plugin_set.deinit();
         self.scheduler.deinit();
         self.resources.deinit();
         self.world.deinit();
@@ -25,6 +28,9 @@ pub const App = struct {
 
     pub fn addPlugin(self: *Self, comptime P: type, plugin: P) !void {
         comptime assertPlugin(P);
+        const name = @typeName(P);
+        if (self.plugin_set.contains(name)) return;
+        try self.plugin_set.put(name, {});
         try plugin.build(self);
     }
 
