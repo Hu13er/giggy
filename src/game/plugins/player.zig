@@ -3,6 +3,16 @@ pub const PlayerPlugin = struct {
         _ = self;
         const render_targets = app.getResource(resources.RenderTargets).?;
         _ = try render_targets.loadRenderTexture("player", 64, 64);
+        const assets_mgr = app.getResource(engine.assets.AssetManager).?;
+
+        const loco_animset = blk: {
+            const val = assets_mgr.configValuePath(
+                "animations",
+                &.{ "locomotion", "greenman" },
+            ).?;
+            break :blk try json.parseFromValue(comps.LocomotionAnimSet, app.gpa, val, .{});
+        };
+        defer loco_animset.deinit();
 
         const player = try app.world.spawn(.{
             comps.Position{ .x = 70, .y = 70, .prev_x = 70, .prev_y = 70 },
@@ -12,7 +22,8 @@ pub const PlayerPlugin = struct {
             comps.Model3D{ .name = "greenman", .render_texture = 0, .mesh = 0, .material = 1 },
             comps.RenderInto{ .into = "player" },
             comps.Animation{ .index = 0, .frame = 0, .acc = 0, .speed = 0 },
-            comps.MoveAnimation{ .idle = 0, .run = 2, .speed = 200.0 },
+            loco_animset.value,
+            comps.LocomotionAnimState{ .moving = false },
         });
         _ = try app.insertResource(resources.Player, .{ .entity = player });
 
@@ -74,6 +85,8 @@ const PlayerInputSystem = struct {
 };
 
 const std = @import("std");
+const json = std.json;
+
 const engine = @import("engine");
 const core = engine.core;
 const rl = engine.rl;

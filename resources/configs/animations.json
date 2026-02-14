@@ -1,0 +1,14 @@
+{
+  "locomotion": {
+    "greenman": {
+      "idle": 1,
+      "run": 2,
+      "base_speed": 60.0,
+      "run_speed_ref": 100.0,
+      "move_start": 5.0,
+      "move_stop": 2.0,
+      "speed_scale_min": 0.5,
+      "speed_scale_max": 2
+    }
+  }
+}

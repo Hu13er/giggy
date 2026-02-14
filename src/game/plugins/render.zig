@@ -1,7 +1,7 @@
 pub const RenderPlugin = struct {
     pub fn build(self: @This(), app: *core.App) !void {
         _ = self;
-        try app.addSystem(.fixed_update, PlayMovingsAnimSystem);
+        try app.addSystem(.fixed_update, UpdateLocomotionAnimationSystem);
         try app.addSystem(.update, Update3dModelAnimationsSystem);
         try app.addSystem(.render, Render3dModelsSystem);
         try app.addSystem(.render, RenderBeginSystem);
@@ -14,24 +14,57 @@ pub const RenderPlugin = struct {
     }
 };
 
-const PlayMovingsAnimSystem = struct {
+const UpdateLocomotionAnimationSystem = struct {
     pub const provides: []const []const u8 = &.{ "animation", "animation.set" };
     pub const after_all_labels: []const []const u8 = &.{"physics"};
 
     pub fn run(app: *core.App) !void {
-        var it = app.world.query(&[_]type{ comps.Animation, comps.Velocity, comps.MoveAnimation });
+        const assets = app.getResource(engine.assets.AssetManager).?;
+        var it = app.world.query(&[_]type{
+            comps.Animation,
+            comps.Velocity,
+            comps.LocomotionAnimSet,
+            comps.LocomotionAnimState,
+            comps.Model3D,
+        });
         while (it.next()) |_| {
             const av = it.get(comps.AnimationView);
             const vv = it.get(comps.VelocityView);
-            const mav = it.get(comps.MoveAnimationView);
-            const new_anim = if (@abs(vv.x.*) > 0.1 or @abs(vv.y.*) > 0.1)
-                mav.run.*
-            else
-                mav.idle.*;
+            const set = it.get(comps.LocomotionAnimSetView);
+            const state = it.get(comps.LocomotionAnimStateView);
+            const mv = it.get(comps.Model3DView);
+
+            const speed = std.math.sqrt(vv.x.* * vv.x.* + vv.y.* * vv.y.*);
+            const start = set.move_start.*;
+            const stop = set.move_stop.*;
+            if (!state.moving.* and speed >= start) state.moving.* = true;
+            if (state.moving.* and speed <= stop) state.moving.* = false;
+
+            const new_anim = if (state.moving.*) set.run.* else set.idle.*;
             if (new_anim != av.index.*) {
+                const model = assets.models.getPtr(mv.name.*).?;
+                const old_frames = @as(f32, @floatFromInt(model.animations[av.index.*].frameCount));
+                const prev_speed = @max(av.speed.*, 0.001);
+                const old_max_acc = old_frames / prev_speed;
+                const phase = if (old_max_acc > 0) av.acc.* / old_max_acc else 0;
+
                 av.index.* = new_anim;
-                av.frame.* = 0;
-                av.speed.* = mav.speed.*;
+
+                const new_frames_count = @as(usize, @intCast(model.animations[av.index.*].frameCount));
+                const base_speed = set.base_speed.*;
+                const ref = @max(set.run_speed_ref.*, 0.001);
+                const scale = std.math.clamp(speed / ref, set.speed_scale_min.*, set.speed_scale_max.*);
+                av.speed.* = base_speed * scale;
+                const new_max_acc = @as(f32, @floatFromInt(new_frames_count)) / av.speed.*;
+                av.acc.* = phase * new_max_acc;
+                av.frame.* = @as(usize, @intFromFloat(av.acc.* * av.speed.*)) % new_frames_count;
+            } else if (state.moving.*) {
+                const base_speed = set.base_speed.*;
+                const ref = @max(set.run_speed_ref.*, 0.001);
+                const scale = std.math.clamp(speed / ref, set.speed_scale_min.*, set.speed_scale_max.*);
+                av.speed.* = base_speed * scale;
+            } else {
+                av.speed.* = set.base_speed.*;
             }
         }
     }

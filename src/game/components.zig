@@ -82,17 +82,44 @@ pub const AnimationView = struct {
     acc: *f32,
 };
 
-pub const MoveAnimation = struct {
+pub const LocomotionAnimSet = struct {
+    // Animation index for idle (model.animations[...]).
     idle: usize,
+    // Animation index for run (model.animations[...]).
     run: usize,
-    speed: f32,
+    // Base playback speed in frames per second.
+    base_speed: f32,
+    // Movement speed that maps to base_speed (scales playback).
+    run_speed_ref: f32,
+    // Velocity magnitude threshold to enter "moving".
+    move_start: f32,
+    // Velocity magnitude threshold to exit "moving".
+    move_stop: f32,
+    // Min playback multiplier when moving.
+    speed_scale_min: f32,
+    // Max playback multiplier when moving.
+    speed_scale_max: f32,
 };
 
-pub const MoveAnimationView = struct {
-    pub const Of = MoveAnimation;
+pub const LocomotionAnimSetView = struct {
+    pub const Of = LocomotionAnimSet;
     idle: *usize,
     run: *usize,
-    speed: *f32,
+    base_speed: *f32,
+    run_speed_ref: *f32,
+    move_start: *f32,
+    move_stop: *f32,
+    speed_scale_min: *f32,
+    speed_scale_max: *f32,
+};
+
+pub const LocomotionAnimState = struct {
+    moving: bool,
+};
+
+pub const LocomotionAnimStateView = struct {
+    pub const Of = LocomotionAnimState;
+    moving: *bool,
 };
 
 pub const Rotation = struct {

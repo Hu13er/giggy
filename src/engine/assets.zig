@@ -11,16 +11,19 @@ pub const AssetManager = struct {
     textures: std.StringHashMap(rl.Texture),
     models: std.StringHashMap(Model),
     shaders: std.StringHashMap(rl.Shader),
+    configs: std.StringHashMap(Config),
     gpa: mem.Allocator,
 
     const Self = @This();
     const Error = error{InvalidAssetBundle};
+    const Config = json.Parsed(json.Value);
 
     pub fn init(gpa: mem.Allocator) !Self {
         return Self{
             .textures = std.StringHashMap(rl.Texture2D).init(gpa),
             .models = std.StringHashMap(Model).init(gpa),
             .shaders = std.StringHashMap(rl.Shader).init(gpa),
+            .configs = std.StringHashMap(Config).init(gpa),
             .gpa = gpa,
         };
     }
@@ -49,6 +52,14 @@ pub const AssetManager = struct {
                 self.gpa.free(entry.key_ptr.*);
             }
             self.shaders.deinit();
+        }
+        {
+            var it = self.configs.iterator();
+            while (it.next()) |entry| {
+                entry.value_ptr.deinit();
+                self.gpa.free(entry.key_ptr.*);
+            }
+            self.configs.deinit();
         }
     }
 
@@ -129,6 +140,21 @@ pub const AssetManager = struct {
                 _ = try self.loadShader(entry.key_ptr.*, vs_z, fs_z);
             }
         }
+
+        if (root.get("configs")) |value| {
+            const obj = switch (value) {
+                .object => |o| o,
+                else => return Error.InvalidAssetBundle,
+            };
+            var it = obj.iterator();
+            while (it.next()) |entry| {
+                const path = switch (entry.value_ptr.*) {
+                    .string => |s| s,
+                    else => return Error.InvalidAssetBundle,
+                };
+                _ = try self.loadConfig(entry.key_ptr.*, path);
+            }
+        }
     }
 
     pub fn loadTexture(self: *Self, key: []const u8, filename: [:0]const u8) !*rl.Texture2D {
@@ -192,6 +218,61 @@ pub const AssetManager = struct {
         rl.UnloadShader(entry.value);
         self.gpa.free(entry.key);
         return true;
+    }
+
+    pub fn loadConfig(self: *Self, key: []const u8, filename: []const u8) !*json.Value {
+        var file = try fs.cwd().openFile(filename, .{});
+        defer file.close();
+
+        const contents = try file.readToEndAlloc(self.gpa, math.maxInt(usize));
+        defer self.gpa.free(contents);
+
+        var parsed = try json.parseFromSlice(
+            json.Value,
+            self.gpa,
+            contents,
+            .{ .allocate = .alloc_always },
+        );
+        errdefer parsed.deinit();
+
+        if (self.configs.getPtr(key)) |ptr| {
+            ptr.deinit();
+            ptr.* = parsed;
+            return &ptr.value;
+        }
+
+        const key_copy = try self.gpa.dupe(u8, key);
+        errdefer self.gpa.free(key_copy);
+        try self.configs.put(key_copy, parsed);
+        return &self.configs.getPtr(key_copy).?.value;
+    }
+
+    pub fn unloadConfig(self: *Self, key: []const u8) bool {
+        const entry = self.configs.fetchRemove(key) orelse return false;
+        entry.value.deinit();
+        self.gpa.free(entry.key);
+        return true;
+    }
+
+    pub fn getConfig(self: *Self, key: []const u8) ?*const json.Value {
+        const entry = self.configs.getPtr(key) orelse return null;
+        return &entry.value;
+    }
+
+    pub fn configValuePath(self: *Self, key: []const u8, path: []const []const u8) ?json.Value {
+        var value = self.getConfig(key) orelse return null;
+        for (path) |segment| {
+            const obj = valueObject(value.*) orelse return null;
+            const next = obj.get(segment) orelse return null;
+            value = &next;
+        }
+        return value.*;
+    }
+    fn valueObject(value: json.Value) ?json.ObjectMap {
+        return switch (value) {
+            .object => |o| o,
+            else => null,
+        };
     }
 };
 
