@@ -1,8 +1,9 @@
 pub const DebugPlugin = struct {
     pub fn build(self: @This(), app: *core.App) !void {
         _ = self;
-        _ = try app.insertResource(resources.DebugState, .{ .enabled = false });
+        _ = try app.insertResource(resources.DebugState, resources.DebugState.init(app.gpa));
         try app.addSystem(.update, UpdateDebugModeSystem);
+        try app.addSystem(.update, UpdateDebugValuesSystem);
         try app.addSystem(.render, RenderDebugSystem);
         try app.addSystem(.render, RenderDebugOverlaySystem);
     }
@@ -13,6 +14,24 @@ const UpdateDebugModeSystem = struct {
         const debug = app.getResource(resources.DebugState).?;
         if (rl.IsKeyReleased(rl.KEY_F9)) {
             debug.enabled = !debug.enabled;
+        }
+    }
+};
+
+const UpdateDebugValuesSystem = struct {
+    pub fn run(app: *core.App) !void {
+        const debug = app.getResource(resources.DebugState).?;
+        if (!debug.enabled) return;
+
+        const time = app.getResource(core.Time).?;
+        try debug.setFmt("time.dt", "{d:.4}", .{time.dt});
+        try debug.setFmt("time.alpha", "{d:.2}", .{time.alpha});
+        try debug.setFmt("world.entities", "{d}", .{app.world.count()});
+
+        if (app.getResource(resources.Player)) |player| {
+            if (app.world.get(comps.PositionView, player.entity)) |pos| {
+                try debug.setFmt("player.pos", "{d:.1}, {d:.1}", .{ pos.x.*, pos.y.* });
+            }
         }
     }
 };
@@ -102,8 +121,27 @@ const RenderDebugOverlaySystem = struct {
         const screen = app.getResource(resources.Screen).?;
         const fps_y: c_int = @intCast(screen.height);
         rl.DrawFPS(10, fps_y - 30);
+        drawDebugValues(debug, 10, 10, 20, 16, rl.WHITE);
     }
 };
+
+fn drawDebugValues(debug: *resources.DebugState, x: c_int, y: c_int, line_height: c_int, font_size: c_int, color: rl.Color) void {
+    var it = debug.values.iterator();
+    var line_y = y;
+    var buffer: [256]u8 = undefined;
+    while (it.next()) |entry| {
+        const line = std.fmt.bufPrintZ(&buffer, "{s}: {s}", .{
+            entry.key_ptr.*,
+            entry.value_ptr.*,
+        }) catch |err| switch (err) {
+            error.NoSpaceLeft => std.fmt.bufPrintZ(&buffer, "{s}: <truncated>", .{
+                entry.key_ptr.*,
+            }) catch continue,
+        };
+        rl.DrawText(line, x, line_y, font_size, color);
+        line_y += line_height;
+    }
+}
 
 fn interpolatedPositionX(pos: comps.PositionView, alpha: f32) f32 {
     return engine.math.lerp(pos.prev_x.*, pos.x.*, alpha);
@@ -116,6 +154,7 @@ fn interpolatedPositionY(pos: comps.PositionView, alpha: f32) f32 {
 const engine = @import("engine");
 const core = engine.core;
 const rl = engine.rl;
+const std = @import("std");
 
 const resources = @import("../resources.zig");
 const render = @import("render.zig");
