@@ -6,10 +6,13 @@ pub const LevelPlugin = struct {
 
         const registry = app.getResource(prefabs.Registry).?;
         try registry.register("map", PrefabsFactory.mapFactory);
+        try registry.register("spawn_point", PrefabsFactory.spawnPointFactory);
+        try registry.register("door", PrefabsFactory.doorFactory);
         try registry.register("layer", PrefabsFactory.layerFactory);
         try registry.register("edge", PrefabsFactory.edgeFactory);
 
         try app.addSystem(.startup, LevelSystem);
+        try app.addSystem(.fixed_update, DoorSystem);
     }
 };
 
@@ -22,7 +25,7 @@ const LevelSystem = struct {
 
         if (assets_mgr.configValuePath("levels", &.{"spawn"})) |spawn| {
             const spawn_own = try room_mgr.own(spawn.string);
-            room_mgr.current = comps.Room.init(spawn_own);
+            room_mgr.current = comps.Room.init(spawn_own).id;
         }
 
         const rooms = assets_mgr.configValuePath("levels", &.{"rooms"}).?;
@@ -39,29 +42,122 @@ const LevelSystem = struct {
     }
 };
 
+const DoorSystem = struct {
+    pub const provides: []const []const u8 = &.{"teleport"};
+    pub const after_all_labels: []const []const u8 = &.{"physics"};
+
+    pub fn run(app: *core.App) !void {
+        const room_mgr = app.getResource(resources.RoomManager).?;
+
+        var it = app.world.query(&[_]type{
+            comps.Player,
+            comps.Position,
+            comps.Room,
+        });
+        while (it.next()) |_| {
+            const player = it.get(comps.PlayerView);
+            const pos = it.get(comps.PositionView);
+            const room = it.get(comps.RoomView);
+
+            var it_door = app.world.query(&[_]type{
+                comps.Teleport,
+                comps.Position,
+                comps.ColliderCircle,
+                comps.Room,
+            });
+            it_door = it_door;
+            while (it_door.next()) |_| {
+                const tp = it_door.get(comps.TeleportView);
+                const tp_pos = it_door.get(comps.PositionView);
+                const tp_col = it_door.get(comps.ColliderCircleView);
+                const tp_room = it_door.get(comps.RoomView);
+
+                if (room.id.* != tp_room.id.*) continue;
+
+                if (rl.CheckCollisionPointCircle(
+                    .{ .x = pos.x.*, .y = pos.y.* },
+                    .{ .x = tp_pos.x.*, .y = tp_pos.y.* },
+                    tp_col.radius.*,
+                )) {
+                    room.id.* = tp.room_id.*;
+                    room_mgr.current = room.id.*;
+                    player.just_spawned.* = true;
+                    break;
+                }
+            }
+        }
+    }
+};
+
 const PrefabsFactory = struct {
     fn mapFactory(
         gpa: mem.Allocator,
         app: *core.App,
         cb: *ecs.CommandBuffer,
-        entity: ecs.Entity,
         object: json.Value,
         room_ref: []const u8,
     ) !void {
         _ = gpa;
         _ = cb;
-        _ = entity;
         var room_mgr = app.getResource(resources.RoomManager).?;
         if (readRoomBounds(object)) |bounds| {
-            try room_mgr.setBounds(comps.Room.init(room_ref), bounds);
+            try room_mgr.setBounds(comps.Room.init(room_ref).id, bounds);
         }
+    }
+
+    fn spawnPointFactory(
+        gpa: mem.Allocator,
+        app: *core.App,
+        cb: *ecs.CommandBuffer,
+        object: json.Value,
+        room_ref: []const u8,
+    ) !void {
+        _ = gpa;
+
+        const room_mgr = app.getResource(resources.RoomManager).?;
+        const room_name = try room_mgr.own(room_ref);
+
+        const x = valueToF32(object.object.get("x")).?;
+        const y = valueToF32(object.object.get("y")).?;
+
+        const e = app.world.reserveEntity();
+        try cb.spawnBundle(e, SpawnPointBundle, .{
+            .spawn = .{},
+            .pos = .{ .x = x, .y = y, .prev_x = x, .prev_y = y },
+            .room = .init(room_name),
+        });
+    }
+
+    fn doorFactory(
+        gpa: mem.Allocator,
+        app: *core.App,
+        cb: *ecs.CommandBuffer,
+        object: json.Value,
+        room_ref: []const u8,
+    ) !void {
+        _ = gpa;
+
+        const room_mgr = app.getResource(resources.RoomManager).?;
+        const room_name = try room_mgr.own(room_ref);
+
+        const tp_room = valueToStr(object.object.get("name")).?;
+        const x = valueToF32(object.object.get("x")).?;
+        const y = valueToF32(object.object.get("y")).?;
+        const r = valueToF32(object.object.get("width")).? / 2.0;
+
+        const e = app.world.reserveEntity();
+        try cb.spawnBundle(e, DoorBundle, .{
+            .tp = .{ .room_id = comps.Room.init(tp_room).id },
+            .pos = .{ .x = x, .y = y, .prev_x = x, .prev_y = y },
+            .col = .{ .radius = r, .mask = 1 << 2 },
+            .room = .init(room_name),
+        });
     }
 
     fn layerFactory(
         gpa: mem.Allocator,
         app: *core.App,
         cb: *ecs.CommandBuffer,
-        entity: ecs.Entity,
         object: json.Value,
         room_ref: []const u8,
     ) !void {
@@ -108,6 +204,7 @@ const PrefabsFactory = struct {
         const asset_mgr = app.getResource(assets.AssetManager).?;
         const owned_key = asset_mgr.textures.getKey(name) orelse return;
 
+        const entity = app.world.reserveEntity();
         try cb.spawnBundle(entity, LayerBundle, .{
             .pos = .{ .x = x, .y = y, .prev_x = x, .prev_y = y },
             .wh = .{ .w = w, .h = h },
@@ -120,7 +217,6 @@ const PrefabsFactory = struct {
         gpa: mem.Allocator,
         app: *core.App,
         cb: *ecs.CommandBuffer,
-        entity: ecs.Entity,
         object: json.Value,
         room_ref: []const u8,
     ) !void {
@@ -146,10 +242,11 @@ const PrefabsFactory = struct {
 
         const first = readPoint(poly[0]) orelse return;
         var prev = first;
+        const base_entity = app.world.reserveEntity();
         var use_entity = true;
         for (poly[1..]) |point_val| {
             const next = readPoint(point_val) orelse continue;
-            const e = if (use_entity) entity else app.world.reserveEntity();
+            const e = if (use_entity) base_entity else app.world.reserveEntity();
             use_entity = false;
             try cb.spawnBundle(e, LineBundle, .{
                 .line = .{
@@ -163,7 +260,7 @@ const PrefabsFactory = struct {
             });
             prev = next;
         }
-        const e = if (use_entity) entity else app.world.reserveEntity();
+        const e = if (use_entity) base_entity else app.world.reserveEntity();
         try cb.spawnBundle(e, LineBundle, .{
             .line = .{
                 .x0 = base_x + prev.x,
@@ -304,6 +401,19 @@ fn valueToI16(value_opt: ?json.Value) ?i16 {
     };
 }
 
+const DoorBundle = struct {
+    tp: comps.Teleport,
+    pos: comps.Position,
+    col: comps.ColliderCircle,
+    room: comps.Room,
+};
+
+const SpawnPointBundle = struct {
+    spawn: comps.SpawnPoint,
+    pos: comps.Position,
+    room: comps.Room,
+};
+
 const LayerBundle = struct {
     pos: comps.Position,
     wh: comps.WidthHeight,
@@ -330,6 +440,7 @@ const core = engine.core;
 const assets = engine.assets;
 const prefabs = engine.prefabs;
 const ecs = engine.ecs;
+const rl = engine.rl;
 
 const comps = @import("../components.zig");
 const resources = @import("../resources.zig");

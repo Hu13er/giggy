@@ -20,7 +20,7 @@ const UpdateLocomotionAnimationSystem = struct {
     pub fn run(app: *core.App) !void {
         const assets = app.getResource(engine.assets.AssetManager).?;
         const room_mgr = app.getResource(resources.RoomManager).?;
-        const current_room = room_mgr.current orelse return;
+        const current_room_id = room_mgr.current orelse return;
 
         var it = app.world.query(&[_]type{
             comps.Animation,
@@ -38,7 +38,7 @@ const UpdateLocomotionAnimationSystem = struct {
             const mv = it.get(comps.Model3DView);
             const rm = it.get(comps.RoomView);
 
-            if (rm.id.* != current_room.id) continue;
+            if (rm.id.* != current_room_id) continue;
 
             const speed = std.math.sqrt(vv.x.* * vv.x.* + vv.y.* * vv.y.*);
             const start = set.move_start.*;
@@ -115,7 +115,7 @@ const Render3dModelsSystem = struct {
         const assets = app.getResource(engine.assets.AssetManager).?;
         const render_targets = app.getResource(resources.RenderTargets).?;
         const room_mgr = app.getResource(resources.RoomManager).?;
-        const current_room = room_mgr.current orelse return;
+        const current_room_id = room_mgr.current orelse return;
         var it = app.world.query(&[_]type{
             comps.Model3D,
             comps.Rotation,
@@ -128,7 +128,7 @@ const Render3dModelsSystem = struct {
             const into = it.getAuto(comps.RenderInto).into;
             const rm = it.get(comps.RoomView);
 
-            if (rm.id.* != current_room.id) continue;
+            if (rm.id.* != current_room_id) continue;
 
             const rotation = interpolatedRotation(rv, time.alpha);
 
@@ -175,7 +175,7 @@ const CollectRenderablesSystem = struct {
         const render_targets = app.getResource(resources.RenderTargets).?;
         const renderables_list = app.getResource(resources.Renderables).?;
         const room_mgr = app.getResource(resources.RoomManager).?;
-        const current_room = room_mgr.current orelse return;
+        const current_room_id = room_mgr.current orelse return;
         const list = &renderables_list.list;
 
         var it_texture = app.world.query(&[_]type{ comps.Position, comps.WidthHeight, comps.Texture, comps.Room });
@@ -185,7 +185,7 @@ const CollectRenderablesSystem = struct {
             const t = it_texture.get(comps.TextureView);
             const rm = it_texture.get(comps.RoomView);
 
-            if (rm.id.* != current_room.id) continue;
+            if (rm.id.* != current_room_id) continue;
 
             const texture = assets.textures.getPtr(t.name.*).?;
 
@@ -205,7 +205,7 @@ const CollectRenderablesSystem = struct {
             const into = it_render.getAuto(comps.RenderInto).into;
             const rm = it_render.get(comps.RoomView);
 
-            if (rm.id.* != current_room.id) continue;
+            if (rm.id.* != current_room_id) continue;
             const render_texture = render_targets.render_textures.get(into.*).?;
 
             const w = @as(f32, @floatFromInt(render_texture.texture.width));

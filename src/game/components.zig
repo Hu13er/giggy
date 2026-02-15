@@ -1,3 +1,18 @@
+pub const Player = struct {
+    id: u8,
+    just_spawned: bool,
+};
+
+pub const PlayerView = struct {
+    pub const Of = Player;
+    id: *u8,
+    just_spawned: *bool,
+};
+
+pub const SpawnPoint = struct {
+    id: u8 = 0,
+};
+
 pub const Position = struct {
     x: f32,
     y: f32,
@@ -184,6 +199,15 @@ pub const RoomView = struct {
     pub const Of = Room;
     name: *[]const u8,
     id: *u32,
+};
+
+pub const Teleport = struct {
+    room_id: u32,
+};
+
+pub const TeleportView = struct {
+    pub const Of = Teleport;
+    room_id: *u32,
 };
 
 const std = @import("std");

@@ -51,14 +51,14 @@ const RenderDebugSystem = struct {
         const time = app.getResource(core.Time).?;
         const assets = app.getResource(engine.assets.AssetManager).?;
         const room_mgr = app.getResource(resources.RoomManager).?;
-        const current_room = room_mgr.current orelse return;
+        const current_room_id = room_mgr.current orelse return;
         var it_texture = app.world.query(&[_]type{ comps.Position, comps.Texture, comps.Room });
         while (it_texture.next()) |_| {
             const pos = it_texture.get(comps.PositionView);
             const texture_name = it_texture.getAuto(comps.Texture).name;
             const rm = it_texture.get(comps.RoomView);
 
-            if (rm.id.* != current_room.id) continue;
+            if (rm.id.* != current_room_id) continue;
 
             const texture = assets.textures.get(texture_name.*).?;
             const x = interpolatedPositionX(pos, time.alpha);
@@ -77,7 +77,7 @@ const RenderDebugSystem = struct {
             const into = it_render.getAuto(comps.RenderInto).into;
             const rm = it_render.get(comps.RoomView);
 
-            if (rm.id.* != current_room.id) continue;
+            if (rm.id.* != current_room_id) continue;
 
             const render_texture = render_targets.render_textures.get(into.*).?;
             const w: f32 = @floatFromInt(render_texture.texture.width);
@@ -96,13 +96,13 @@ const RenderDebugSystem = struct {
     fn renderColliders(app: *core.App) void {
         const time = app.getResource(core.Time).?;
         const room_mgr = app.getResource(resources.RoomManager).?;
-        const current_room = room_mgr.current orelse return;
+        const current_room_id = room_mgr.current orelse return;
         var it = app.world.query(&[_]type{ comps.ColliderLine, comps.Room });
         while (it.next()) |_| {
             const line = it.get(comps.ColliderLineView);
             const rm = it.get(comps.RoomView);
 
-            if (rm.id.* != current_room.id) continue;
+            if (rm.id.* != current_room_id) continue;
 
             const from: rl.Vector2 = .{ .x = line.x0.*, .y = line.y0.* };
             const to: rl.Vector2 = .{ .x = line.x1.*, .y = line.y1.* };
@@ -114,7 +114,7 @@ const RenderDebugSystem = struct {
             const col = circle_it.get(comps.ColliderCircleView);
             const rm = circle_it.get(comps.RoomView);
 
-            if (rm.id.* != current_room.id) continue;
+            if (rm.id.* != current_room_id) continue;
 
             const x = interpolatedPositionX(pos, time.alpha);
             const y = interpolatedPositionY(pos, time.alpha);

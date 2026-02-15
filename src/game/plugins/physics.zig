@@ -57,22 +57,25 @@ const ColliderRigidBodySystem = struct {
     }
 
     fn circleLineCollision(app: *core.App) !void {
-        var it = app.world.query(&[_]type{ comps.Position, comps.ColliderCircle });
+        var it = app.world.query(&[_]type{ comps.Position, comps.ColliderCircle, comps.Room });
         while (it.next()) |_| {
             const pos = it.get(comps.PositionView);
             const col = it.get(comps.ColliderCircleView);
+            const room = it.get(comps.RoomView);
 
             var pos_vec = xmath.Vec2{ .x = pos.x.*, .y = pos.y.* };
-            pushFromEdges(&app.world, &pos_vec, col.radius.*, col.mask.*);
+            pushFromEdges(&app.world, &pos_vec, col.radius.*, col.mask.*, room.id.*);
             pos.x.* = pos_vec.x;
             pos.y.* = pos_vec.y;
         }
     }
 
-    fn pushFromEdges(world: *ecs.World, pos: *xmath.Vec2, r: f32, mask: u64) void {
-        var it = world.query(&[_]type{comps.ColliderLine});
+    fn pushFromEdges(world: *ecs.World, pos: *xmath.Vec2, r: f32, mask: u64, room_id: u32) void {
+        var it = world.query(&[_]type{ comps.ColliderLine, comps.Room });
         while (it.next()) |_| {
             const line = it.get(comps.ColliderLineView);
+            const room = it.get(comps.RoomView);
+            if (room.id.* != room_id) continue;
             const a = xmath.Vec2{ .x = line.x0.*, .y = line.y0.* };
             const b = xmath.Vec2{ .x = line.x1.*, .y = line.y1.* };
             if (line.mask.* & mask == 0) continue;

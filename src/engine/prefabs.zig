@@ -16,7 +16,6 @@ pub const Registry = struct {
         gpa: mem.Allocator,
         app: *core.App,
         command_buffer: *CommandBuffer,
-        entity: ecs.Entity,
         object: json.Value,
         room: []const u8,
     ) anyerror!void;
@@ -77,8 +76,7 @@ pub const Registry = struct {
 
         // load map settings
         if (self.factories.get("map")) |factory| {
-            const e = app.world.reserveEntity();
-            try factory(self.gpa, app, &cb, e, map, room);
+            try factory(self.gpa, app, &cb, map, room);
         }
 
         for (layers) |layer_val| {
@@ -104,15 +102,13 @@ pub const Registry = struct {
 
                     const prefab_name = resolvePrefabClass(object_obj) orelse continue;
                     const factory = self.factories.get(prefab_name) orelse continue;
-                    const e = app.world.reserveEntity();
-                    try factory(self.gpa, app, &cb, e, object_val, room);
+                    try factory(self.gpa, app, &cb, object_val, room);
                 }
             } else if (mem.eql(u8, layer_type, "imagelayer")) {
                 // load layers
                 const prefab_name = resolvePrefabClass(layer_obj) orelse continue;
                 const factory = self.factories.get(prefab_name) orelse continue;
-                const e = app.world.reserveEntity();
-                try factory(self.gpa, app, &cb, e, layer_val, room);
+                try factory(self.gpa, app, &cb, layer_val, room);
             }
         }
         try cb.flush(&app.world);
@@ -168,14 +164,13 @@ test "Registry.spawnFromTiledValue spawns from object and image layers" {
             gpa: mem.Allocator,
             app: *core.App,
             cb: *CommandBuffer,
-            entity: ecs.Entity,
             object: json.Value,
             room: []const u8,
         ) !void {
             _ = gpa;
-            _ = app;
             _ = object;
             _ = room;
+            const entity = app.world.reserveEntity();
             try cb.spawnBundle(entity, Bundle, .{ .spawned = .{ .kind = 1 } });
         }
 
@@ -183,14 +178,13 @@ test "Registry.spawnFromTiledValue spawns from object and image layers" {
             gpa: mem.Allocator,
             app: *core.App,
             cb: *CommandBuffer,
-            entity: ecs.Entity,
             object: json.Value,
             room: []const u8,
         ) !void {
             _ = gpa;
-            _ = app;
             _ = object;
             _ = room;
+            const entity = app.world.reserveEntity();
             try cb.spawnBundle(entity, Bundle, .{ .spawned = .{ .kind = 2 } });
         }
     };

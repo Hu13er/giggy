@@ -135,7 +135,7 @@ pub const Renderables = struct {
 };
 
 pub const RoomManager = struct {
-    current: ?comps.Room,
+    current: ?u32,
     items: std.StringHashMap(void),
     bounds: std.AutoHashMap(u32, RoomBounds),
     gpa: mem.Allocator,
@@ -167,12 +167,12 @@ pub const RoomManager = struct {
         return name_copy;
     }
 
-    pub fn setBounds(self: *Self, room: comps.Room, bounds: RoomBounds) !void {
-        try self.bounds.put(room.id, bounds);
+    pub fn setBounds(self: *Self, room_id: u32, bounds: RoomBounds) !void {
+        try self.bounds.put(room_id, bounds);
     }
 
-    pub fn getBounds(self: *Self, room: comps.Room) ?RoomBounds {
-        return self.bounds.get(room.id);
+    pub fn getBounds(self: *Self, room_id: u32) ?RoomBounds {
+        return self.bounds.get(room_id);
     }
 };
 
@@ -190,5 +190,4 @@ const engine = @import("engine");
 const rl = engine.rl;
 const ecs = engine.ecs;
 
-const comps = @import("components.zig");
 const renderables = @import("plugins/render/renderables.zig");

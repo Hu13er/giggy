@@ -15,6 +15,7 @@ pub const PlayerPlugin = struct {
         defer loco_animset.deinit();
 
         const player = try app.world.spawn(.{
+            comps.Player{ .id = 1, .just_spawned = true },
             comps.Position{ .x = 70, .y = 70, .prev_x = 70, .prev_y = 70 },
             comps.Velocity{ .x = 0, .y = 0 },
             comps.ColliderCircle{ .radius = 16.0, .mask = 1 },
@@ -29,6 +30,7 @@ pub const PlayerPlugin = struct {
         _ = try app.insertResource(resources.Player, .{ .entity = player });
 
         try app.addSystem(.update, PlayerInputSystem);
+        try app.addSystem(.fixed_update, PlayerSpawnSystem);
     }
 };
 
@@ -82,6 +84,37 @@ const PlayerInputSystem = struct {
         }
         vel.x.* = x;
         vel.y.* = y;
+    }
+};
+
+const PlayerSpawnSystem = struct {
+    pub const provides: []const []const u8 = &.{"spawn"};
+    pub const after_all_labels: []const []const u8 = &.{"teleport"};
+
+    pub fn run(app: *core.App) !void {
+        var it = app.world.query(&[_]type{ comps.SpawnPoint, comps.Position, comps.Room });
+        outer: while (it.next()) |_| {
+            const spawn_pos = it.get(comps.PositionView);
+            const spawn_room = it.get(comps.RoomView);
+
+            var it_player = app.world.query(&[_]type{ comps.Player, comps.Position, comps.Room });
+            while (it_player.next()) |_| {
+                const pos = it_player.get(comps.PositionView);
+                const player = it_player.get(comps.PlayerView);
+                const room = it_player.get(comps.RoomView);
+
+                if (room.id.* != spawn_room.id.*) continue;
+                if (!player.just_spawned.*) continue;
+
+                pos.x.* = spawn_pos.x.*;
+                pos.y.* = spawn_pos.y.*;
+                pos.prev_x.* = pos.x.*;
+                pos.prev_y.* = pos.y.*;
+                player.just_spawned.* = false;
+                continue :outer;
+            }
+            break;
+        }
     }
 };
 

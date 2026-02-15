@@ -3,17 +3,44 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "objects.tmj",
+    "activeFile": "level1.tmj",
     "expandedProjectPaths": [
         "."
     ],
     "fileStates": {
-        "objects.tmj": {
+        "level1.tmj": {
+            "expandedObjectLayers": [
+                11,
+                5
+            ],
             "scale": 1,
-            "selectedLayer": 0,
+            "selectedLayer": 5,
             "viewCenter": {
-                "x": 370,
-                "y": 411
+                "x": 653.5,
+                "y": 373
+            }
+        },
+        "level2.tmj": {
+            "expandedObjectLayers": [
+                3
+            ],
+            "scale": 1.1138997395833334,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": 904.4799672696455,
+                "y": 64.63777433589524
+            }
+        },
+        "objects.tmj": {
+            "expandedObjectLayers": [
+                11,
+                5
+            ],
+            "scale": 1,
+            "selectedLayer": 5,
+            "viewCenter": {
+                "x": 653.5,
+                "y": 373
             }
         }
     },
@@ -21,13 +48,16 @@
     "map.height": 32,
     "map.lastUsedExportFilter": "JSON map files (*.tmj *.json)",
     "map.lastUsedFormat": "json",
-    "map.width": 32,
+    "map.width": 48,
     "openFiles": [
-        "objects.tmj"
+        "level1.tmj",
+        "level2.tmj"
     ],
     "project": "giggy.tiled-project",
     "property.type": "int",
     "recentFiles": [
+        "level2.tmj",
+        "level1.tmj",
         "objects.tmj"
     ]
 }

@@ -54,8 +54,8 @@ const CameraOnObjectSystem = struct {
 
         var x = xmath.lerp(pos.prev_x.*, pos.x.*, time.alpha);
         var y = xmath.lerp(pos.prev_y.*, pos.y.*, time.alpha);
-        if (room_mgr.current) |room| {
-            if (room_mgr.getBounds(room)) |bounds| {
+        if (room_mgr.current) |room_id| {
+            if (room_mgr.getBounds(room_id)) |bounds| {
                 const half_w = w / 2.0;
                 const min_x = bounds.x + half_w;
                 const max_x = bounds.x + bounds.w - half_w;

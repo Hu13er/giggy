@@ -3,7 +3,9 @@
     "level1/map": "resources/level1/map.png",
     "level1/abol": "resources/level1/abol.png",
     "level1/wall1": "resources/level1/wall1.png",
-    "level1/wall2": "resources/level1/wall2.png"
+    "level1/wall2": "resources/level1/wall2.png",
+    "level1/wall3": "resources/level1/wall3.png",
+    "level2/map": "resources/level2/map.png"
   },
   "models": {
     "greenman": "resources/gltf/greenman.glb"
