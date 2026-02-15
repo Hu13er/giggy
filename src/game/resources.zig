@@ -137,6 +137,7 @@ pub const Renderables = struct {
 pub const RoomManager = struct {
     current: ?comps.Room,
     items: std.StringHashMap(void),
+    bounds: std.AutoHashMap(u32, RoomBounds),
     gpa: mem.Allocator,
 
     const Self = @This();
@@ -145,6 +146,7 @@ pub const RoomManager = struct {
         return .{
             .current = null,
             .items = std.StringHashMap(void).init(gpa),
+            .bounds = std.AutoHashMap(u32, RoomBounds).init(gpa),
             .gpa = gpa,
         };
     }
@@ -154,6 +156,7 @@ pub const RoomManager = struct {
         while (it.next()) |key|
             self.gpa.free(key.*);
         self.items.deinit();
+        self.bounds.deinit();
     }
 
     pub fn own(self: *Self, name: []const u8) ![]const u8 {
@@ -163,6 +166,21 @@ pub const RoomManager = struct {
         try self.items.put(name_copy, {});
         return name_copy;
     }
+
+    pub fn setBounds(self: *Self, room: comps.Room, bounds: RoomBounds) !void {
+        try self.bounds.put(room.id, bounds);
+    }
+
+    pub fn getBounds(self: *Self, room: comps.Room) ?RoomBounds {
+        return self.bounds.get(room.id);
+    }
+};
+
+pub const RoomBounds = struct {
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
 };
 
 const std = @import("std");

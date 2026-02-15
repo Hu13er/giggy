@@ -5,6 +5,7 @@ pub const LevelPlugin = struct {
         _ = try app.insertResource(resources.RoomManager, .init(app.gpa));
 
         const registry = app.getResource(prefabs.Registry).?;
+        try registry.register("map", PrefabsFactory.mapFactory);
         try registry.register("layer", PrefabsFactory.layerFactory);
         try registry.register("edge", PrefabsFactory.edgeFactory);
 
@@ -28,17 +29,34 @@ const LevelSystem = struct {
         var it = rooms.object.iterator();
         while (it.next()) |lvl_entry| {
             const room_own = try room_mgr.own(lvl_entry.key_ptr.*);
-            try registry.spawnFromTiledFile(
-                app,
+            var parsed = try prefabs.Registry.loadTiledJson(
                 std.heap.page_allocator,
                 lvl_entry.value_ptr.*.string,
-                room_own,
             );
+            defer parsed.deinit();
+            try registry.spawnFromTiledValue(app, parsed.value, room_own);
         }
     }
 };
 
 const PrefabsFactory = struct {
+    fn mapFactory(
+        gpa: mem.Allocator,
+        app: *core.App,
+        cb: *ecs.CommandBuffer,
+        entity: ecs.Entity,
+        object: json.Value,
+        room_ref: []const u8,
+    ) !void {
+        _ = gpa;
+        _ = cb;
+        _ = entity;
+        var room_mgr = app.getResource(resources.RoomManager).?;
+        if (readRoomBounds(object)) |bounds| {
+            try room_mgr.setBounds(comps.Room.init(room_ref), bounds);
+        }
+    }
+
     fn layerFactory(
         gpa: mem.Allocator,
         app: *core.App,
@@ -58,8 +76,12 @@ const PrefabsFactory = struct {
         };
 
         const name = valueToStr(obj.get("name")) orelse return;
-        const x = valueToF32(obj.get("offsetx")) orelse return;
-        const y = valueToF32(obj.get("offsety")) orelse return;
+        const base_x = valueToF32(obj.get("x")) orelse 0;
+        const base_y = valueToF32(obj.get("y")) orelse 0;
+        const offset_x = valueToF32(obj.get("offsetx")) orelse 0;
+        const offset_y = valueToF32(obj.get("offsety")) orelse 0;
+        const x = base_x + offset_x;
+        const y = base_y + offset_y;
         const w = valueToF32(obj.get("imagewidth")) orelse return;
         const h = valueToF32(obj.get("imageheight")) orelse return;
 
@@ -176,6 +198,67 @@ fn readRoom(map: json.Value) ?[]const u8 {
         return name;
     }
     return null;
+}
+
+fn readRoomBounds(map: json.Value) ?resources.RoomBounds {
+    const obj = switch (map) {
+        .object => |o| o,
+        else => return null,
+    };
+    const layers_val = obj.get("layers") orelse return null;
+    const layers = switch (layers_val) {
+        .array => |arr| arr,
+        else => return null,
+    };
+    for (layers.items) |layer| {
+        const layer_obj = switch (layer) {
+            .object => |o| o,
+            else => continue,
+        };
+        const layer_type = valueToStr(layer_obj.get("type")) orelse "";
+        if (!std.mem.eql(u8, layer_type, "imagelayer")) continue;
+
+        const class = valueToStr(layer_obj.get("class")) orelse "";
+        const name = valueToStr(layer_obj.get("name")) orelse "";
+        const is_map_class = std.mem.eql(u8, class, "map");
+        const is_map_name = std.mem.endsWith(u8, name, "/map") or std.mem.eql(u8, name, "map");
+        const has_bounds_prop = valueHasBoolProperty(layer_obj.get("properties"), "bounds", true);
+        if (!is_map_class and !is_map_name and !has_bounds_prop) continue;
+
+        const w = valueToF32(layer_obj.get("imagewidth")) orelse continue;
+        const h = valueToF32(layer_obj.get("imageheight")) orelse continue;
+        const base_x = valueToF32(layer_obj.get("x")) orelse 0;
+        const base_y = valueToF32(layer_obj.get("y")) orelse 0;
+        const offset_x = valueToF32(layer_obj.get("offsetx")) orelse 0;
+        const offset_y = valueToF32(layer_obj.get("offsety")) orelse 0;
+        const x = base_x + offset_x;
+        const y = base_y + offset_y;
+
+        return .{ .x = x, .y = y, .w = w, .h = h };
+    }
+    return null;
+}
+
+fn valueHasBoolProperty(props_opt: ?json.Value, name: []const u8, expected: bool) bool {
+    const props = props_opt orelse return false;
+    const props_arr = switch (props) {
+        .array => |arr| arr,
+        else => return false,
+    };
+    for (props_arr.items) |props_item| {
+        const item_obj = switch (props_item) {
+            .object => |o| o,
+            else => continue,
+        };
+        const item_name = valueToStr(item_obj.get("name")) orelse continue;
+        if (!std.mem.eql(u8, item_name, name)) continue;
+        const value = item_obj.get("value") orelse return false;
+        return switch (value) {
+            .bool => |b| b == expected,
+            else => false,
+        };
+    }
+    return false;
 }
 
 fn readPoint(value: json.Value) ?Point {

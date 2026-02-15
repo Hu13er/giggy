@@ -75,6 +75,12 @@ pub const Registry = struct {
             else => return Error.InvalidTiledJson,
         };
 
+        // load map settings
+        if (self.factories.get("map")) |factory| {
+            const e = app.world.reserveEntity();
+            try factory(self.gpa, app, &cb, e, map, room);
+        }
+
         for (layers) |layer_val| {
             const layer_obj = switch (layer_val) {
                 .object => |obj| obj,
@@ -83,6 +89,7 @@ pub const Registry = struct {
 
             const layer_type = objectFieldString(layer_obj, "type") orelse "";
             if (mem.eql(u8, layer_type, "objectgroup")) {
+                // load objects
                 const objects_val = layer_obj.get("objects") orelse continue;
                 const objects = switch (objects_val) {
                     .array => |arr| arr.items,
@@ -101,6 +108,7 @@ pub const Registry = struct {
                     try factory(self.gpa, app, &cb, e, object_val, room);
                 }
             } else if (mem.eql(u8, layer_type, "imagelayer")) {
+                // load layers
                 const prefab_name = resolvePrefabClass(layer_obj) orelse continue;
                 const factory = self.factories.get(prefab_name) orelse continue;
                 const e = app.world.reserveEntity();

@@ -81,6 +81,7 @@
          "y":0
         }, 
         {
+         "class":"layer",
          "id":2,
          "image":"..\/resources\/map.png",
          "imageheight":1024,
@@ -93,6 +94,11 @@
                  "name":"index",
                  "type":"int",
                  "value":0
+                }, 
+                {
+                 "name":"z_index",
+                 "type":"int",
+                 "value":-10
                 }],
          "type":"imagelayer",
          "visible":true,

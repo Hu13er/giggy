@@ -5,7 +5,6 @@ pub const RenderPlugin = struct {
         try app.addSystem(.update, Update3dModelAnimationsSystem);
         try app.addSystem(.render, Render3dModelsSystem);
         try app.addSystem(.render, RenderBeginSystem);
-        try app.addSystem(.render, RenderBackgroundSystem);
         try app.addSystem(.render, CollectRenderablesSystem);
         try app.addSystem(.render, RenderRenderablesSystem);
         try app.addSystem(.render, RenderEndMode2DSystem);
@@ -165,17 +164,6 @@ const RenderBeginSystem = struct {
     }
 };
 
-const RenderBackgroundSystem = struct {
-    pub const provides: []const []const u8 = &.{LabelRenderPass};
-    pub const after_all_labels: []const []const u8 = &.{LabelRenderBegin};
-
-    pub fn run(app: *core.App) !void {
-        const assets = app.getResource(engine.assets.AssetManager).?;
-        const background = assets.textures.get("map").?;
-        rl.DrawTexture(background, 0, 0, rl.WHITE);
-    }
-};
-
 const CollectRenderablesSystem = struct {
     pub const id = "render.collect";
     pub const provides: []const []const u8 = &.{LabelRenderPass};
@@ -246,9 +234,8 @@ const RenderRenderablesSystem = struct {
         const list = &renderables_list.list;
         std.sort.insertion(renderables.Renderable, list.items, {}, struct {
             fn lessThan(_: void, a: renderables.Renderable, b: renderables.Renderable) bool {
-                if (a.z_index < b.z_index) return true;
-                if (a.y + a.h < b.y + b.h) return true;
-                return false;
+                if (a.z_index != b.z_index) return a.z_index < b.z_index;
+                return a.y + a.h < b.y + b.h;
             }
         }.lessThan);
         for (list.items) |r| {

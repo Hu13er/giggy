@@ -46,23 +46,27 @@ const CameraOnObjectSystem = struct {
         const player = app.getResource(resources.Player).?.entity;
         const camera_state = app.getResource(resources.CameraState).?;
         const screen = app.getResource(resources.Screen).?;
-        const assets = app.getResource(engine.assets.AssetManager).?;
+        const room_mgr = app.getResource(resources.RoomManager).?;
         const pos = app.world.get(comps.PositionView, player).?;
 
         const w = @as(f32, @floatFromInt(screen.width));
         const h = @as(f32, @floatFromInt(screen.height));
 
-        const map = assets.textures.getPtr("map").?;
-
         var x = xmath.lerp(pos.prev_x.*, pos.x.*, time.alpha);
-        const min_x = w / 2.0;
-        const max_x = @as(f32, @floatFromInt(map.width)) - w / 2.0;
-        x = math.clamp(x, min_x, max_x);
-
         var y = xmath.lerp(pos.prev_y.*, pos.y.*, time.alpha);
-        const min_y = h / 2.0;
-        const max_y = @as(f32, @floatFromInt(map.height)) - h / 2.0;
-        y = math.clamp(y, min_y, max_y);
+        if (room_mgr.current) |room| {
+            if (room_mgr.getBounds(room)) |bounds| {
+                const half_w = w / 2.0;
+                const min_x = bounds.x + half_w;
+                const max_x = bounds.x + bounds.w - half_w;
+                x = if (max_x < min_x) bounds.x + bounds.w / 2.0 else math.clamp(x, min_x, max_x);
+
+                const half_h = h / 2.0;
+                const min_y = bounds.y + half_h;
+                const max_y = bounds.y + bounds.h - half_h;
+                y = if (max_y < min_y) bounds.y + bounds.h / 2.0 else math.clamp(y, min_y, max_y);
+            }
+        }
 
         camera_state.camera.target = .{ .x = x, .y = y };
     }
