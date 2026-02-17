@@ -14,7 +14,9 @@ pub const Plugin = struct {
         };
         _ = try app.insertResource(resources.CameraState, .{ .camera = camera });
 
-        try app.addSystem(.update, systems.CameraOnObjectSystem);
+        try app.addSystem(.update, systems.cameraOnObjectSystem, .{
+            .after_all_labels = &.{"physics"},
+        });
     }
 };
 

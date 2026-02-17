@@ -8,4 +8,5 @@ pub const LabelRenderPass = systems.LabelRenderPass;
 pub const LabelRenderEndMode2D = systems.LabelRenderEndMode2D;
 pub const LabelRenderOverlay = systems.LabelRenderOverlay;
 pub const LabelRenderEnd = systems.LabelRenderEnd;
-pub const RenderablesSystemId = systems.RenderablesSystemId;
+pub const CollectRenderablesSystemId = systems.CollectRenderablesSystemId;
+pub const RenderablesSystemId = systems.RenderRenderablesSystemId;

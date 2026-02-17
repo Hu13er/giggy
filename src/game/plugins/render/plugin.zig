@@ -9,15 +9,43 @@ pub const Plugin = struct {
         errdefer renderables_state.deinit();
         _ = try app.insertResource(resources.Renderables, renderables_state);
 
-        try app.addSystem(.fixed_update, systems.UpdateLocomotionAnimationSystem);
-        try app.addSystem(.update, systems.Update3dModelAnimationsSystem);
-        try app.addSystem(.render, systems.Render3dModelsSystem);
-        try app.addSystem(.render, systems.RenderBeginSystem);
-        try app.addSystem(.render, systems.CollectRenderablesSystem);
-        try app.addSystem(.render, systems.RenderRenderablesSystem);
-        try app.addSystem(.render, systems.RenderEndMode2DSystem);
-        try app.addSystem(.render, systems.RenderEndSystem);
-        try app.addSystem(.render, systems.ClearRenderablesSystem);
+        try app.addSystem(.fixed_update, systems.updateLocomotionAnimationSystem, .{
+            .provides = &.{ "animation", "animation.set" },
+            .after_all_labels = &.{"physics"},
+        });
+        try app.addSystem(.update, systems.update3DModelAnimationsSystem, .{
+            .provides = &.{ "animation", "animation.update" },
+            .after_all_labels = &.{"animation.set"},
+        });
+        try app.addSystem(.render, systems.render3DModelsSystem, .{
+            .provides = &.{systems.LabelRenderPrepass},
+            .after_all_labels = &.{"animation.update"},
+        });
+        try app.addSystem(.render, systems.renderBeginSystem, .{
+            .provides = &.{systems.LabelRenderBegin},
+            .after_all_labels = &.{systems.LabelRenderPrepass},
+        });
+        try app.addSystem(.render, systems.collectRenderablesSystem, .{
+            .id = systems.CollectRenderablesSystemId,
+            .provides = &.{systems.LabelRenderPass},
+            .after_all_labels = &.{systems.LabelRenderBegin},
+        });
+        try app.addSystem(.render, systems.renderRenderablesSystem, .{
+            .id = systems.RenderRenderablesSystemId,
+            .provides = &.{systems.LabelRenderPass},
+            .after_ids = &.{systems.CollectRenderablesSystemId},
+        });
+        try app.addSystem(.render, systems.renderEndMode2DSystem, .{
+            .provides = &.{systems.LabelRenderEndMode2D},
+            .after_all_labels = &.{systems.LabelRenderPass},
+        });
+        try app.addSystem(.render, systems.renderEndSystem, .{
+            .provides = &.{systems.LabelRenderEnd},
+            .after_all_labels = &.{ systems.LabelRenderEndMode2D, systems.LabelRenderOverlay },
+        });
+        try app.addSystem(.render, systems.clearRenderablesSystem, .{
+            .after_all_labels = &.{systems.LabelRenderEnd},
+        });
     }
 };
 

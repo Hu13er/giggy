@@ -34,8 +34,8 @@ pub const App = struct {
         try plugin.build(self);
     }
 
-    pub fn addSystem(self: *Self, step: Scheduler.Step, comptime system: type) !void {
-        try self.scheduler.add(step, system);
+    pub fn addSystem(self: *Self, step: Scheduler.Step, run: Scheduler.SystemFn, config: Scheduler.SystemConfig) !void {
+        try self.scheduler.add(step, run, config);
     }
 
     pub fn runStep(self: *Self, step: Scheduler.Step) !void {
@@ -91,61 +91,18 @@ test "App plugins, resources, and scheduler" {
     const testing = std.testing;
     const alloc = testing.allocator;
 
-    const Counter = struct {
-        value: u32,
-        pub fn inc(self: *@This(), v: u32) void {
-            self.value += v;
-        }
-    };
-
-    const Tracker = struct {
-        value: u8,
-        deinit_called: *bool,
-        pub fn init(deinit_called: *bool) @This() {
-            return .{ .value = 0, .deinit_called = deinit_called };
-        }
-        pub fn deinit(self: *@This()) void {
-            self.deinit_called.* = true;
-        }
-    };
-
-    const CounterPlugin = struct {
-        tracker_deinit_called: *bool,
-
-        pub fn build(self: @This(), app: *App) !void {
-            _ = try app.insertResource(Counter, .{ .value = 0 });
-            _ = try app.insertResource(Tracker, .init(self.tracker_deinit_called));
-        }
-    };
-
-    const Systems = struct {
-        const AddOneSystem = struct {
-            pub fn run(app: *App) !void {
-                const counter = app.getResource(Counter).?;
-                counter.inc(1);
-            }
-        };
-
-        const AddTwoSystem = struct {
-            pub fn run(app: *App) !void {
-                const counter = app.getResource(Counter).?;
-                counter.inc(2);
-            }
-        };
-    };
-
     var app = try App.init(alloc);
     defer app.deinit();
 
     var tracker_deinit_called = false;
-    try app.addPlugin(CounterPlugin, .{ .tracker_deinit_called = &tracker_deinit_called });
-    try app.addSystem(.update, Systems.AddOneSystem);
-    try app.addSystem(.update, Systems.AddTwoSystem);
+    try app.addPlugin(TestCounterPlugin, .{ .tracker_deinit_called = &tracker_deinit_called });
+    try app.addSystem(.update, testAddOneSystem, .{});
+    try app.addSystem(.update, testAddTwoSystem, .{});
     try app.runStep(.update);
 
-    const actual_counter = app.getResource(Counter).?;
+    const actual_counter = app.getResource(TestCounter).?;
     try testing.expectEqual(@as(u32, 3), actual_counter.value);
-    const removed_tacker = app.resources.remove(Tracker);
+    const removed_tacker = app.resources.remove(TestTracker);
     try testing.expect(removed_tacker);
     try testing.expect(tracker_deinit_called);
 }
@@ -156,3 +113,40 @@ const engine = @import("engine");
 const ecs = engine.ecs;
 const ResourceStore = @import("resources.zig").ResourceStore;
 const Scheduler = @import("scheduler.zig").Scheduler;
+
+const TestCounter = struct {
+    value: u32,
+    pub fn inc(self: *@This(), v: u32) void {
+        self.value += v;
+    }
+};
+
+const TestTracker = struct {
+    value: u8,
+    deinit_called: *bool,
+    pub fn init(deinit_called: *bool) @This() {
+        return .{ .value = 0, .deinit_called = deinit_called };
+    }
+    pub fn deinit(self: *@This()) void {
+        self.deinit_called.* = true;
+    }
+};
+
+const TestCounterPlugin = struct {
+    tracker_deinit_called: *bool,
+
+    pub fn build(self: @This(), app: *App) !void {
+        _ = try app.insertResource(TestCounter, .{ .value = 0 });
+        _ = try app.insertResource(TestTracker, .init(self.tracker_deinit_called));
+    }
+};
+
+fn testAddOneSystem(app: *App) !void {
+    const counter = app.getResource(TestCounter).?;
+    counter.inc(1);
+}
+
+fn testAddTwoSystem(app: *App) !void {
+    const counter = app.getResource(TestCounter).?;
+    counter.inc(2);
+}
