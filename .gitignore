@@ -1,6 +1,12 @@
-# zig
+### zig ###
 .zig-cache/
 zig-out/
+
+zig-cache/
+zig-out/
+build/
+build-*/
+docgen_tmp/
 
 # deps and libs
 third_party/
