@@ -9,10 +9,11 @@ pub fn fadeSystem(app: *core.App) !void {
             fade.t += time.dt;
             fade.alpha = std.math.clamp(fade.t / out_dur, 0, 1);
             if (fade.alpha >= 1) {
-                if (fade.pending) |p| {
-                    commitTeleport(app, p);
+                if (fade.callback) |cb| {
+                    cb.call();
+                    cb.destroy();
                 }
-                fade.pending = null;
+                fade.callback = null;
                 fade.state = .hold_black;
                 fade.t = 0;
                 fade.alpha = 1;
@@ -55,24 +56,6 @@ pub fn fadeOverlaySystem(app: *core.App) !void {
     );
 }
 
-fn commitTeleport(app: *core.App, p: resources.ScreenFade.Pending) void {
-    const room_mgr = app.getResource(level_resources.RoomManager).?;
-    const player_entity = app.getResource(player_resources.Player).?.entity;
-
-    if (app.world.get(components.world.RoomView, player_entity)) |room| {
-        room.id.* = p.room_id;
-        room_mgr.current = p.room_id;
-    }
-    if (app.world.get(components.player.PlayerView, player_entity)) |pl| {
-        pl.just_spawned.* = true;
-        pl.spawn_id.* = p.spawn_id;
-    }
-    if (app.world.get(components.transform.VelocityView, player_entity)) |vel| {
-        vel.x.* = 0;
-        vel.y.* = 0;
-    }
-}
-
 const std = @import("std");
 
 const engine = @import("engine");
@@ -83,6 +66,4 @@ const game = @import("game");
 const components = game.components;
 const resources = game.plugins.fade.resources;
 const core_resources = game.plugins.core.resources;
-const level_resources = game.plugins.level.resources;
-const player_resources = game.plugins.player.resources;
 const render = game.plugins.render;

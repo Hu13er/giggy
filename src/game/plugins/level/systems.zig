@@ -20,7 +20,6 @@ pub fn levelSystem(app: *core.App) !void {
 }
 
 pub fn doorSystem(app: *core.App) !void {
-    const room_mgr = app.getResource(resources.RoomManager).?;
     const fade = app.getResource(fade_resources.ScreenFade).?;
 
     var it = app.world.query(&[_]type{
@@ -58,8 +57,37 @@ pub fn doorSystem(app: *core.App) !void {
             )) {
                 vel.x.* = 0;
                 vel.y.* = 0;
-                fade.begin(.{ .room_id = tp.room_id.*, .spawn_id = tp.spawn_id.* });
-                _ = room_mgr;
+
+                const Callback = struct {
+                    app: *core.App,
+                    room_id: u32,
+                    spawn_id: u8,
+
+                    fn call(self: @This()) void {
+                        const room_mgr = self.app.getResource(resources.RoomManager).?;
+                        const player_entity = self.app.getResource(game.plugins.player.resources.Player).?.entity;
+
+                        if (self.app.world.get(components.world.RoomView, player_entity)) |r| {
+                            r.id.* = self.room_id;
+                            room_mgr.current = self.room_id;
+                        }
+                        if (self.app.world.get(components.player.PlayerView, player_entity)) |pl| {
+                            pl.just_spawned.* = true;
+                            pl.spawn_id.* = self.spawn_id;
+                        }
+                        if (self.app.world.get(components.transform.VelocityView, player_entity)) |v| {
+                            v.x.* = 0;
+                            v.y.* = 0;
+                        }
+                    }
+                };
+                const ctx = Callback{
+                    .app = app,
+                    .room_id = tp.room_id.*,
+                    .spawn_id = tp.spawn_id.*,
+                };
+                try fade.begin(app.gpa, ctx, Callback.call);
+
                 break;
             }
         }
