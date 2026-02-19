@@ -303,7 +303,7 @@ pub const World = struct {
         var it = self.archetypes.iterator();
         while (it.next()) |entry| {
             if (entry.value_ptr.len() == 0)
-                try to_remove.append(self.gpa, entry.key_ptr.*);
+                try to_remove.append(gpa, entry.key_ptr.*);
         }
         return to_remove.toOwnedSlice(gpa);
     }
