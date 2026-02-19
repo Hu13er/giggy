@@ -59,7 +59,7 @@ pub const Pathfinder = struct {
         grid: []bool,
         heuristic: Heuristic,
         directions: Directions,
-    ) !Pathfinder {
+    ) Pathfinder {
         return .{
             .width = w,
             .height = h,
@@ -75,7 +75,7 @@ pub const Pathfinder = struct {
         h: usize,
         cell_size: f32,
         grid: []bool,
-    ) !Pathfinder {
+    ) Pathfinder {
         return Pathfinder.init(w, h, cell_size, grid, .euclidean, all_directions);
     }
 

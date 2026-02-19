@@ -13,13 +13,15 @@ pub fn main() !void {
     const grid_width: usize = 20;
     const grid_height: usize = 15;
 
-    var pf = try Pathfinder.initDefault(
-        allocator,
+    const grid = try allocator.alloc(bool, grid_width * grid_height);
+    defer allocator.free(grid);
+
+    var pf = Pathfinder.initDefault(
         grid_width,
         grid_height,
         cell_size,
+        grid,
     );
-    defer pf.deinit();
 
     // Mark all cells walkable by default.
     for (pf.grid, 0..) |*cell, i| {
@@ -51,12 +53,11 @@ pub fn main() !void {
                 .y = @as(f32, @floatFromInt(rl.GetMouseY())),
             };
 
-            const maybe_path = try pf.findPath(start_world, target_world);
+            if (path) |old| allocator.free(old);
+            const maybe_path = try pf.findPath(allocator, start_world, target_world);
             if (maybe_path) |new_path| {
-                if (path) |old| allocator.free(old);
                 path = new_path;
             } else {
-                if (path) |old| allocator.free(old);
                 path = null;
             }
         }
@@ -135,6 +136,6 @@ const std = @import("std");
 const engine = @import("engine");
 const xmath = engine.math;
 const rl = engine.raylib;
-const path_finding = engine.path_finding;
-const Pathfinder = path_finding.Pathfinder;
+const algo = engine.algo;
+const Pathfinder = algo.path_finding.Pathfinder;
 const Vec2 = xmath.Vec2;
