@@ -2,6 +2,7 @@ pub const core = @import("plugins/core/root.zig");
 pub const camera = @import("plugins/camera/root.zig");
 pub const assets = @import("plugins/assets/root.zig");
 pub const player = @import("plugins/player/root.zig");
+pub const enemy = @import("plugins/enemy/root.zig");
 pub const physics = @import("plugins/physics/root.zig");
 pub const level = @import("plugins/level/root.zig");
 pub const fade = @import("plugins/fade/root.zig");
