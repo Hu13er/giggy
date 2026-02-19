@@ -12,6 +12,11 @@ pub const Plugin = struct {
         try registry.register("edge", prefabs.PrefabsFactory.edgeFactory);
 
         try app.addSystem(.startup, systems.levelSystem, .{
+            .id = "level.setup",
+            .provides = &.{"level"},
+        });
+        try app.addSystem(.startup, systems.walkableSystem, .{
+            .after_ids = &.{"level.setup"},
             .provides = &.{"level"},
         });
         try app.addSystem(.fixed_update, systems.doorSystem, .{

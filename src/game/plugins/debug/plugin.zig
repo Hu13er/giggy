@@ -16,9 +16,9 @@ pub const Plugin = struct {
         });
     }
 };
-const core = engine.core;
 
 const engine = @import("engine");
+const core = engine.core;
 const game = @import("game");
 const render = game.plugins.render;
 const resources = @import("resources.zig");

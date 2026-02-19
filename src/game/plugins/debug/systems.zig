@@ -29,6 +29,7 @@ pub fn renderDebugSystem(app: *core.App) !void {
     if (!debug.enabled) return;
     renderBoxes(app);
     renderColliders(app);
+    renderWalkables(app);
 }
 
 pub fn renderDebugOverlaySystem(app: *core.App) !void {
@@ -120,6 +121,37 @@ fn renderColliders(app: *core.App) void {
             0,
             rl.YELLOW,
         );
+    }
+}
+
+fn renderWalkables(app: *core.App) void {
+    const room_mgr = app.getResource(level_resources.RoomManager) orelse return;
+    const current_room_id = room_mgr.current orelse return;
+    const bounds = room_mgr.getBounds(current_room_id) orelse return;
+    const grid = room_mgr.getGrid(current_room_id) orelse return;
+
+    const cell_size = level_resources.RoomManager.cell_size;
+    const alpha: u8 = 50;
+    const walk_color = rl.Color{ .r = 0, .g = 255, .b = 0, .a = alpha };
+    const block_color = rl.Color{ .r = 255, .g = 0, .b = 0, .a = alpha };
+
+    for (0..grid.h) |y| {
+        for (0..grid.w) |x| {
+            const idx = y * grid.w + x;
+            const rx = bounds.x + @as(f32, @floatFromInt(x)) * cell_size;
+            const ry = bounds.y + @as(f32, @floatFromInt(y)) * cell_size;
+            const rect = rl.Rectangle{
+                .x = rx,
+                .y = ry,
+                .width = cell_size,
+                .height = cell_size,
+            };
+            if (grid.walkables[idx]) {
+                rl.DrawRectangleLinesEx(rect, 1.5, walk_color);
+            } else {
+                rl.DrawRectangleRec(rect, block_color);
+            }
+        }
     }
 }
 
