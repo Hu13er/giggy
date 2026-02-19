@@ -1,7 +1,7 @@
 pub const Plugin = struct {
     pub fn build(self: @This(), app: *core.App) !void {
         _ = self;
-        _ = try app.insertResource(resources.DebugState, resources.DebugState.init(app.gpa));
+        _ = try app.insertResource(resources.DebugState, try resources.DebugState.init(app.gpa));
         try app.addSystem(.update, systems.updateDebugModeSystem, .{});
         try app.addSystem(.update, systems.updateDebugValuesSystem, .{});
         try app.addSystem(.render, systems.renderDebugSystem, .{

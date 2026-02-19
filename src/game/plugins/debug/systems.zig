@@ -30,6 +30,7 @@ pub fn renderDebugSystem(app: *core.App) !void {
     renderBoxes(app);
     renderColliders(app);
     renderWalkables(app);
+    renderPoints(debug);
 }
 
 pub fn renderDebugOverlaySystem(app: *core.App) !void {
@@ -152,6 +153,12 @@ fn renderWalkables(app: *core.App) void {
                 rl.DrawRectangleRec(rect, block_color);
             }
         }
+    }
+}
+
+fn renderPoints(debug: *resources.DebugState) void {
+    for (debug.points.items) |p| {
+        rl.DrawCircleV(.{ .x = p.x, .y = p.y }, p.radius, p.color);
     }
 }
 

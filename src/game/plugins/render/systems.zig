@@ -72,12 +72,6 @@ pub fn update3DModelAnimationsSystem(app: *core.App) !void {
         while (am.acc.* > max_acc) : (am.acc.* -= max_acc) {}
         const new_current = @as(usize, @intFromFloat(am.acc.* * am.speed.*)) % frame_count;
         am.frame.* = new_current;
-
-        rl.UpdateModelAnimationBones(
-            model.model,
-            model.animations[am.index.*],
-            @intCast(new_current),
-        );
     }
 }
 
@@ -109,6 +103,13 @@ pub fn render3DModelsSystem(app: *core.App) !void {
         rl.BeginTextureMode(render_texture);
         rl.ClearBackground(rl.BLANK);
         rl.BeginMode3D(camera3d);
+        if (it.getOrNull(components.animation.AnimationView)) |am| {
+            rl.UpdateModelAnimationBones(
+                model.model,
+                model.animations[am.index.*],
+                @intCast(am.frame.*),
+            );
+        }
         rl.DrawModelEx(
             model.model,
             rl.Vector3{ .x = 0, .y = 0, .z = 0 },

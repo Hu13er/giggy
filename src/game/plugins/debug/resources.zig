@@ -1,14 +1,16 @@
 pub const DebugState = struct {
     enabled: bool,
     values: std.StringHashMap([]const u8),
+    points: std.ArrayList(DebugPoint),
     gpa: mem.Allocator,
 
     const Self = @This();
 
-    pub fn init(gpa: mem.Allocator) Self {
+    pub fn init(gpa: mem.Allocator) !Self {
         return .{
             .enabled = false,
             .values = std.StringHashMap([]const u8).init(gpa),
+            .points = try std.ArrayListUnmanaged(DebugPoint).initCapacity(gpa, 1),
             .gpa = gpa,
         };
     }
@@ -20,6 +22,7 @@ pub const DebugState = struct {
             self.gpa.free(entry.value_ptr.*);
         }
         self.values.deinit();
+        self.points.deinit(self.gpa);
     }
 
     pub fn set(self: *Self, key: []const u8, value: []const u8) !void {
@@ -58,7 +61,24 @@ pub const DebugState = struct {
         }
         self.values.clearRetainingCapacity();
     }
+
+    pub fn addPoint(self: *Self, point: DebugPoint) !void {
+        try self.points.append(self.gpa, point);
+    }
+
+    pub fn clearPoints(self: *Self) void {
+        self.points.clearRetainingCapacity();
+    }
+};
+
+pub const DebugPoint = struct {
+    x: f32,
+    y: f32,
+    radius: f32 = 4.0,
+    color: rl.Color = rl.RED,
 };
 
 const std = @import("std");
 const mem = std.mem;
+const engine = @import("engine");
+const rl = engine.raylib;

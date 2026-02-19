@@ -106,6 +106,48 @@ pub const Pathfinder = struct {
         };
     }
 
+    /// Find the nearest walkable cell to a world-space position within `max_radius` cells.
+    /// Returns world-space position at the cell center, or null if none.
+    pub fn nearestWalkableWorld(self: *const Pathfinder, world: Vec2, max_radius: i32) ?Vec2 {
+        const max_x: i32 = @intCast(self.width);
+        const max_y: i32 = @intCast(self.height);
+        if (max_x == 0 or max_y == 0) return null;
+
+        var start = self.toGrid(world);
+        start.x = std.math.clamp(start.x, 0, max_x - 1);
+        start.y = std.math.clamp(start.y, 0, max_y - 1);
+
+        if (max_radius < 0) return null;
+        const radius = std.math.clamp(max_radius, 0, if (max_x > max_y) max_x else max_y);
+
+        const min_x = std.math.clamp(start.x - radius, 0, max_x - 1);
+        const max_xr = std.math.clamp(start.x + radius, 0, max_x - 1);
+        const min_y = std.math.clamp(start.y - radius, 0, max_y - 1);
+        const max_yr = std.math.clamp(start.y + radius, 0, max_y - 1);
+
+        var best_dist2: ?f32 = null;
+        var best_pos: ?Vec2 = null;
+
+        var y: i32 = min_y;
+        while (y <= max_yr) : (y += 1) {
+            var x: i32 = min_x;
+            while (x <= max_xr) : (x += 1) {
+                const p = GridPos{ .x = x, .y = y };
+                if (!self.isWalkable(p)) continue;
+                const world_p = self.toWorld(p);
+                const dx = world_p.x - world.x;
+                const dy = world_p.y - world.y;
+                const dist2 = dx * dx + dy * dy;
+                if (best_dist2 == null or dist2 < best_dist2.?) {
+                    best_dist2 = dist2;
+                    best_pos = world_p;
+                }
+            }
+        }
+
+        return best_pos;
+    }
+
     pub fn setWalkable(self: *Pathfinder, world_pos: Vec2, walkable: bool) void {
         const p = self.toGrid(world_pos);
         const idx = self.index(p) orelse return;
