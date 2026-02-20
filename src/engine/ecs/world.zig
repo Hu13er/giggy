@@ -111,14 +111,16 @@ pub const World = struct {
 
         for (dst_meta.components, 0..) |comp, dst_idx| {
             if (src_arch.indexOfCID(comp.cid)) |src_idx| {
-                const fields_src = src_arch
-                    .components[src_idx]
-                    .fields;
-                const fields_dst = dst_arch
-                    .components[dst_idx]
-                    .fields;
-                for (fields_src, fields_dst) |src, *dst|
-                    try dst.appendBytes(self.gpa, src.atRaw(src_index));
+                const fields_src = src_arch.components[src_idx].fields;
+                const fields_dst = dst_arch.components[dst_idx].fields;
+                dst_arch.components[dst_idx].length += 1;
+                for (fields_src, fields_dst, 0..) |src, *dst, i| {
+                    dst.appendBytes(self.gpa, src.atRaw(src_index)) catch |err| {
+                        for (0..i) |j|
+                            fields_dst[j].pop();
+                        return err;
+                    };
+                }
             }
         }
 
@@ -156,14 +158,16 @@ pub const World = struct {
 
         for (dst_meta.components, 0..) |comp, dst_idx| {
             if (src_arch.indexOfCID(comp.cid)) |src_idx| {
-                const fields_src = src_arch
-                    .components[src_idx]
-                    .fields;
-                const fields_dst = dst_arch
-                    .components[dst_idx]
-                    .fields;
-                for (fields_src, fields_dst) |src, *dst|
-                    try dst.appendBytes(self.gpa, src.atRaw(src_index));
+                const fields_src = src_arch.components[src_idx].fields;
+                const fields_dst = dst_arch.components[dst_idx].fields;
+                dst_arch.components[dst_idx].length += 1;
+                for (fields_src, fields_dst, 0..) |src, *dst, i| {
+                    dst.appendBytes(self.gpa, src.atRaw(src_index)) catch |err| {
+                        for (0..i) |j|
+                            fields_dst[j].pop();
+                        return err;
+                    };
+                }
             }
         }
 
@@ -204,14 +208,16 @@ pub const World = struct {
         for (dst_meta.components, 0..) |comp, dst_idx| {
             c += 1;
             const src_idx = src_arch.indexOfCID(comp.cid).?;
-            const fields_src = src_arch
-                .components[src_idx]
-                .fields;
-            const fields_dst = dst_arch
-                .components[dst_idx]
-                .fields;
-            for (fields_src, fields_dst) |src, *dst|
-                try dst.appendBytes(self.gpa, src.atRaw(src_index));
+            const fields_src = src_arch.components[src_idx].fields;
+            const fields_dst = dst_arch.components[dst_idx].fields;
+            dst_arch.components[dst_idx].length += 1;
+            for (fields_src, fields_dst, 0..) |src, *dst, i| {
+                dst.appendBytes(self.gpa, src.atRaw(src_index)) catch |err| {
+                    for (0..i) |j|
+                        fields_dst[j].pop();
+                    return err;
+                };
+            }
         }
 
         try self.entity_archetype.put(entity, dst_hash);
@@ -246,14 +252,16 @@ pub const World = struct {
 
         for (dst_meta.components, 0..) |comp, dst_idx| {
             const src_idx = src_arch.indexOfCID(comp.cid).?;
-            const fields_src = src_arch
-                .components[src_idx]
-                .fields;
-            const fields_dst = dst_arch
-                .components[dst_idx]
-                .fields;
-            for (fields_src, fields_dst) |src, *dst|
-                try dst.appendBytes(self.gpa, src.atRaw(src_index));
+            const fields_src = src_arch.components[src_idx].fields;
+            const fields_dst = dst_arch.components[dst_idx].fields;
+            dst_arch.components[dst_idx].length += 1;
+            for (fields_src, fields_dst, 0..) |src, *dst, i| {
+                dst.appendBytes(self.gpa, src.atRaw(src_index)) catch |err| {
+                    for (0..i) |j|
+                        fields_dst[j].pop();
+                    return err;
+                };
+            }
         }
 
         try self.entity_archetype.put(entity, dst_hash);
@@ -835,6 +843,44 @@ test "World.{spawnBytes,assignBytes,unassignMeta}" {
     const arch = world.archetypeOf(next).?;
     try testing.expect(!arch.meta.hasComponents(&[_]type{Position}));
     try testing.expect(arch.meta.hasComponents(&[_]type{Velocity}));
+}
+
+test "World with zero-field components" {
+    const Tag = struct {
+        pub const cid = 1;
+    };
+    const Position = struct {
+        x: u32,
+    };
+
+    const alloc = testing.allocator;
+    var world = try World.init(alloc);
+    defer world.deinit();
+
+    const e0 = try world.spawn(.{Tag{}});
+    try testing.expectEqual(@as(usize, 1), world.count());
+    {
+        const arch = world.archetypeOf(e0).?;
+        try testing.expect(arch.meta.hasComponents(&[_]type{Tag}));
+        try testing.expect(!arch.meta.hasComponents(&[_]type{Position}));
+    }
+
+    try world.assign(e0, .{Position{ .x = 42 }});
+    {
+        const arch = world.archetypeOf(e0).?;
+        try testing.expect(arch.meta.hasComponents(&[_]type{Tag}));
+        try testing.expect(arch.meta.hasComponents(&[_]type{Position}));
+    }
+
+    var it = world.query(&[_]type{Tag});
+    var count: usize = 0;
+    while (it.next()) |_| {
+        count += 1;
+    }
+    try testing.expectEqual(@as(usize, 1), count);
+
+    try testing.expect(world.despawn(e0));
+    try testing.expectEqual(@as(usize, 0), world.count());
 }
 
 const std = @import("std");

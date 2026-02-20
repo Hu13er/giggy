@@ -873,6 +873,30 @@ test "Archetype.Iterator" {
     try testing.expectEqual(2, count);
 }
 
+test "Archetype with zero-field component" {
+    const alloc = testing.allocator;
+    const Tag = struct {};
+    const Position = struct {
+        x: u32,
+    };
+
+    const meta: Archetype.StaticMeta = comptime .from(&[_]type{ Tag, Position });
+    var archetype = try Archetype.init(alloc, meta);
+    defer archetype.deinit(alloc);
+
+    try archetype.append(alloc, @as(Entity, 1), .{ Tag{}, Position{ .x = 10 } });
+    try archetype.append(alloc, @as(Entity, 2), .{ Tag{}, Position{ .x = 20 } });
+    try testing.expectEqual(@as(usize, 2), archetype.len());
+
+    const pos0 = archetype.atAuto(Position, 0);
+    try testing.expectEqual(@as(u32, 10), pos0.x.*);
+    const pos1 = archetype.atAuto(Position, 1);
+    try testing.expectEqual(@as(u32, 20), pos1.x.*);
+
+    _ = archetype.remove(0);
+    try testing.expectEqual(@as(usize, 1), archetype.len());
+}
+
 const std = @import("std");
 const mem = std.mem;
 const testing = std.testing;

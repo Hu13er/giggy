@@ -1,6 +1,7 @@
 pub const MultiField = struct {
     meta: *const Meta,
     fields: []Field,
+    length: usize,
 
     const Self = @This();
 
@@ -69,6 +70,13 @@ pub const MultiField = struct {
     };
 
     pub fn init(gpa: mem.Allocator, meta: *const Meta) !Self {
+        if (meta.fields.len == 0) {
+            return .{
+                .meta = meta,
+                .fields = &[_]Field{},
+                .length = 0,
+            };
+        }
         var fs = try gpa.alloc(Field, meta.fields.len);
         errdefer gpa.free(fs);
         for (meta.fields, 0..) |_, i| {
@@ -81,10 +89,12 @@ pub const MultiField = struct {
         return .{
             .meta = meta,
             .fields = fs,
+            .length = 0,
         };
     }
 
     pub fn deinit(self: *const Self, gpa: mem.Allocator) void {
+        if (self.fields.len == 0) return;
         for (self.fields) |*f|
             f.deinit(gpa);
         gpa.free(self.fields);
@@ -105,6 +115,8 @@ pub const MultiField = struct {
 
     pub fn appendRaw(self: *Self, gpa: mem.Allocator, data: []const []const u8) !void {
         assert(data.len == self.fields.len);
+        self.length += 1;
+        errdefer self.length -= 1;
         for (self.fields, data, 0..) |*f, d, i| {
             f.appendBytes(gpa, d) catch |err| {
                 for (0..i) |j|
@@ -121,6 +133,8 @@ pub const MultiField = struct {
         const before_size = self.len();
         errdefer self.setSize(before_size);
 
+        self.length += 1;
+
         var idx: usize = 0;
         for (self.fields) |*f| {
             const size = f.meta.size;
@@ -132,6 +146,7 @@ pub const MultiField = struct {
 
     pub fn remove(self: *Self, index: usize) void {
         assert(index < self.len());
+        self.length -= 1;
         for (self.fields) |*f| f.remove(index);
     }
 
@@ -142,20 +157,31 @@ pub const MultiField = struct {
     }
 
     pub fn len(self: *const Self) usize {
-        if (self.fields.len == 0) return 0;
-        const l = self.fields[0].len();
-        for (self.fields[1..]) |f|
+        const l = self.length;
+        for (self.fields) |f|
             assert(f.len() == l);
         return l;
     }
 
     pub fn setSize(self: *Self, size: usize) void {
+        self.length = size;
         for (self.fields) |*f|
             f.setSize(size);
     }
 };
 
 test "MultiField.Meta.from" {
+    const C0 = struct {
+        pub const cid = 0;
+    };
+    try testing.expectEqualDeep(
+        MultiField.Meta{
+            .cid = 0,
+            .fields = &[_]Field.Meta{},
+        },
+        MultiField.Meta.from(C0).*,
+    );
+
     const C1 = struct {
         pub const cid = 1;
         x: u32,
@@ -190,23 +216,28 @@ test "MultiField.Meta.from" {
 }
 
 test "MultiField.Meta.extract" {
-    const C = struct {
+    const C0 = struct {};
+    const meta0: MultiField.Meta = MultiField.Meta.from(C0).*;
+    var extracted0: [0][]const u8 = undefined;
+    meta0.extractRaw(C0, &C0{}, &extracted0);
+
+    const C1 = struct {
         x: u32,
         y: u32,
     };
-    const meta: MultiField.Meta = MultiField.Meta.from(C).*;
-    var extracted: [2][]const u8 = undefined;
-    meta.extractRaw(C, &C{
+    const meta1: MultiField.Meta = MultiField.Meta.from(C1).*;
+    var extracted1: [2][]const u8 = undefined;
+    meta1.extractRaw(C1, &C1{
         .x = 10,
         .y = 20,
-    }, &extracted);
+    }, &extracted1);
     try testing.expectEqual(
         @as(u32, 10),
-        mem.bytesAsValue(u32, extracted[0]).*,
+        mem.bytesAsValue(u32, extracted1[0]).*,
     );
     try testing.expectEqual(
         @as(u32, 20),
-        mem.bytesAsValue(u32, extracted[1]).*,
+        mem.bytesAsValue(u32, extracted1[1]).*,
     );
 }
 
@@ -315,6 +346,28 @@ test "MultiField.append" {
         @as(u32, 0xCAFECAFE),
         mem.bytesAsValue(u32, multi.fields[1].atRaw(0)).*,
     );
+}
+
+test "MultiField with zero-field component" {
+    const alloc = testing.allocator;
+    const Tag = struct {};
+
+    const meta: MultiField.Meta = MultiField.Meta.from(Tag).*;
+    try testing.expectEqual(@as(usize, 0), meta.size());
+
+    var multi = try MultiField.init(alloc, &meta);
+    defer multi.deinit(alloc);
+
+    try testing.expectEqual(@as(usize, 0), multi.len());
+
+    try multi.append(alloc, Tag{});
+    try testing.expectEqual(@as(usize, 1), multi.len());
+
+    try multi.appendBytes(alloc, &[_]u8{});
+    try testing.expectEqual(@as(usize, 2), multi.len());
+
+    multi.pop();
+    try testing.expectEqual(@as(usize, 1), multi.len());
 }
 
 const std = @import("std");
