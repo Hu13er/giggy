@@ -1,6 +1,7 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
+    const name = "giggy";
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
@@ -36,7 +37,7 @@ pub fn build(b: *std.Build) void {
     exe_mod.addImport("game", game_mod);
 
     const exe = b.addExecutable(.{
-        .name = "giggy",
+        .name = name,
         .root_module = exe_mod,
     });
 
@@ -59,6 +60,33 @@ pub fn build(b: *std.Build) void {
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
+
+    // Shared library (.so) build
+    const lib = b.addLibrary(.{
+        .name = name,
+        .root_module = exe_mod,
+        .version = .{ .major = 0, .minor = 1, .patch = 0 },
+    });
+
+    lib.linkLibC();
+
+    // For shared libraries, link raylib as a shared library dependency
+    // This requires raylib to be installed system-wide or available as libraylib.so
+    // Note: Zig should find raylib in standard paths like /usr/lib
+    // If it doesn't, ensure raylib is properly installed system-wide
+    if (use_system_raylib) {
+        lib.linkSystemLibrary("raylib");
+    } else {
+        // Try to link system raylib even if bundled version exists
+        // (static libs can't be embedded in shared libraries)
+        lib.linkSystemLibrary("raylib");
+        lib.addIncludePath(b.path("third_party/raylib/include/"));
+    }
+
+    b.installArtifact(lib);
+
+    const lib_step = b.step("lib", "Build shared library (.so)");
+    lib_step.dependOn(&lib.step);
 
     const examples_step = b.step("examples", "Build all examples");
     addExample(b, engine_mod, target, optimize, use_system_raylib, "blob", "src/examples/blob/main.zig", examples_step);
