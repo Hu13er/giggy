@@ -1,4 +1,5 @@
 pub const Entity = u32;
+pub const Version = u32;
 
 pub const Archetype = struct {
     meta: OwnedMeta,
@@ -9,6 +10,7 @@ pub const Archetype = struct {
 
     const Self = @This();
     const EntityList = std.ArrayList(Entity);
+    const VersionList = std.ArrayList(Version);
     const EntityIndexHashmap = std.AutoHashMap(Entity, usize);
 
     pub const StaticMeta = Meta(.static);
@@ -499,6 +501,40 @@ pub const Archetype = struct {
     }
 };
 
+fn Mutator(comptime View: type) type {
+    comptime if (@typeInfo(View) != .@"struct")
+        @compileError("View must be a struct");
+    return struct {
+        view: View,
+        update: ?Update,
+
+        const Self = @This();
+        const FieldEnum = std.meta.FieldEnum(View);
+
+        pub const Update = struct {
+            ptr: *Version,
+            to: Version,
+        };
+
+        pub fn set(self: Self, comptime field: FieldEnum, value: FieldChildType(field)) void {
+            const field_name = std.meta.fieldInfo(View, field).name;
+            const ptr: *FieldChildType(field) = @constCast(@field(self.view, field_name));
+            ptr.* = value;
+            if (self.update) |update| {
+                update.ptr.* = update.to;
+            }
+        }
+
+        fn FieldChildType(comptime field: FieldEnum) type {
+            const fi = std.meta.fieldInfo(View, field);
+            const ti = @typeInfo(fi.type);
+            comptime if (ti != .pointer)
+                @compileError("expected field " ++ fi.name ++ " to be a pointer");
+            return ti.pointer.child;
+        }
+    };
+}
+
 test "Archetype.Meta.from" {
     const empty = Archetype.StaticMeta.from(&[_]type{});
     try testing.expectEqualDeep(empty, Archetype.StaticMeta.empty);
@@ -895,6 +931,29 @@ test "Archetype with zero-field component" {
 
     _ = archetype.remove(0);
     try testing.expectEqual(@as(usize, 1), archetype.len());
+}
+
+test "Mutator" {
+    const C = struct {
+        x: f32,
+    };
+    const V = struct {
+        pub const Of = C;
+        x: *const f32,
+    };
+
+    var c: C = undefined;
+    c = .{ .x = 0.0 }; // make sure its allocated on stack
+    const v: V = .{ .x = &c.x };
+
+    var version: Version = 0;
+    const next_version: Version = 1;
+
+    const mut: Mutator(V) = .{
+        .view = v,
+        .update = .{ .ptr = &version, .to = next_version },
+    };
+    mut.set(.x, 32.0);
 }
 
 const std = @import("std");
