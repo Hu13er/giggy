@@ -51,6 +51,17 @@ pub fn isComponent(comptime T: type) bool {
     return ti == .@"struct";
 }
 
+pub fn isView(comptime View: type) bool {
+    const ti = @typeInfo(View);
+    if (ti != .@"struct") return false;
+    if (!@hasDecl(View, "Of")) return false;
+    return isComponent(View.Of);
+}
+
+pub fn assertView(comptime View: type) void {
+    comptime if (!isView(View)) @compileError("invalid View type");
+}
+
 test isComponent {
     try testing.expectEqual(true, isComponent(struct {
         pub const cid = 1;

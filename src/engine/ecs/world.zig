@@ -287,6 +287,30 @@ pub const World = struct {
         return arch.atAuto(C, index);
     }
 
+    pub fn mut(self: *Self, View: type, entity: Entity, new_version: Version) ?Mutator(View) {
+        const arch = self.archetypeOf(entity) orelse return null;
+        const index = arch.indexOf(entity).?;
+        return arch.mutAt(View, index, new_version);
+    }
+
+    pub fn mutAuto(self: *Self, C: type, entity: Entity, new_version: Version) ?Mutator(util.ViewOf(C)) {
+        const arch = self.archetypeOf(entity) orelse return null;
+        const index = arch.indexOf(entity).?;
+        return arch.mutAtAuto(C, index, new_version);
+    }
+
+    pub fn version(self: *Self, entity: Entity) ?Version {
+        const arch = self.archetypeOf(entity) orelse return null;
+        const index = arch.indexOf(entity).?;
+        return arch.versionAt(index);
+    }
+
+    pub fn versionPtr(self: *Self, entity: Entity) ?*Version {
+        const arch = self.archetypeOf(entity) orelse return null;
+        const index = arch.indexOf(entity).?;
+        return arch.versionPtrAt(index);
+    }
+
     pub fn count(self: *const Self) usize {
         return self.entity_archetype.count();
     }
@@ -360,22 +384,47 @@ pub const World = struct {
         return self.queryCIDs(cids[0..]);
     }
 
+    pub fn queryMut(self: *Self, comptime Comps: []const type, new_version: Version) QueryIterator {
+        const cids = comptime blk: {
+            // generate a static array of cids
+            var tmp: [Comps.len]u32 = undefined;
+            for (Comps, 0..) |C, i| {
+                util.assertComponent(C);
+                const cid = util.cidOf(C);
+                tmp[i] = cid;
+            }
+            break :blk tmp;
+        };
+        return self.queryCIDsMut(cids[0..], new_version);
+    }
+
     pub fn queryCIDs(self: *Self, cids: []const u32) QueryIterator {
         return .{
             .cids = cids,
             .arch_iter = self.archetypes.valueIterator(),
-            .current_iter = null,
+            .entity_iter = null,
+            .new_version = null,
+        };
+    }
+
+    pub fn queryCIDsMut(self: *Self, cids: []const u32, new_version: Version) QueryIterator {
+        return .{
+            .cids = cids,
+            .arch_iter = self.archetypes.valueIterator(),
+            .entity_iter = null,
+            .new_version = new_version,
         };
     }
 
     pub const QueryIterator = struct {
         cids: []const u32, // TODO: cids are runtime and dynamic: consider compile time cids
         arch_iter: ArchetypeHashMap.ValueIterator,
-        current_iter: ?Archetype.Iterator,
+        entity_iter: ?Archetype.Iterator,
+        new_version: ?Version,
 
         pub fn next(self: *QueryIterator) ?Entity {
             while (true) {
-                if (self.current_iter) |*arch_it| {
+                if (self.entity_iter) |*arch_it| {
                     if (arch_it.next()) |entity| return entity;
                 }
                 const next_arch = while (true) {
@@ -386,39 +435,33 @@ pub const World = struct {
                         return null;
                     }
                 };
-                self.current_iter = next_arch.iter();
+                self.entity_iter =
+                    if (self.new_version) |v|
+                        next_arch.iterMut(v)
+                    else
+                        next_arch.iter();
             }
         }
 
         pub fn get(self: *const QueryIterator, comptime View: type) View {
-            const view_ti = @typeInfo(View);
-            if (view_ti != .@"struct")
-                @compileError("View should be a struct");
-            if (!@hasDecl(View, "Of"))
-                @compileError("View should declare 'Of'");
+            comptime util.assertView(View);
             const Of = View.Of;
-            comptime util.assertComponent(Of);
-            const of_cid = comptime util.cidOf(Of);
 
+            const of_cid = comptime util.cidOf(Of);
             const found = for (self.cids) |c| {
                 if (c == of_cid) break true;
             } else false;
             assert(found);
 
-            return self.current_iter.?.get(View);
+            return self.entity_iter.?.get(View);
         }
 
         pub fn getOrNull(self: *const QueryIterator, comptime View: type) ?View {
-            const view_ti = @typeInfo(View);
-            if (view_ti != .@"struct")
-                @compileError("View should be a struct");
-            if (!@hasDecl(View, "Of"))
-                @compileError("View should declare 'Of'");
-
+            comptime util.assertView(View);
             const Of = View.Of;
-            comptime util.assertComponent(Of);
+
             if (!self.hasComponent(Of)) return null;
-            return self.current_iter.?.get(View);
+            return self.entity_iter.?.get(View);
         }
 
         pub fn getAuto(self: *const QueryIterator, comptime T: type) util.ViewOf(T) {
@@ -430,13 +473,31 @@ pub const World = struct {
             } else false;
             assert(found);
 
-            return self.current_iter.?.getAuto(T);
+            return self.entity_iter.?.getAuto(T);
         }
 
         pub fn getAutoOrNull(self: *const QueryIterator, comptime T: type) ?util.ViewOf(T) {
             comptime util.assertComponent(T);
             if (!self.hasComponent(T)) return null;
-            return self.current_iter.?.getAuto(T);
+            return self.entity_iter.?.getAuto(T);
+        }
+
+        pub fn mut(self: *const QueryIterator, comptime View: type) Mutator(View) {
+            comptime util.assertView(View);
+            return self.entity_iter.?.mut(View);
+        }
+
+        pub fn mutOrNull(self: *const QueryIterator, comptime View: type) ?Mutator(View) {
+            comptime util.assertView(View);
+            const Of = View.Of;
+
+            if (!self.hasComponent(Of)) return null;
+            return self.entity_iter.?.mut(View);
+        }
+
+        pub fn mutAuto(self: *const QueryIterator, comptime C: type) Mutator(util.ViewOf(C)) {
+            comptime util.assertComponent(C);
+            return self.entity_iter.?.mutAuto(C);
         }
 
         pub fn hasComponent(self: *const QueryIterator, comptime C: type) bool {
@@ -448,7 +509,7 @@ pub const World = struct {
             inline for (Comps) |C| {
                 comptime util.assertComponent(C);
                 const cid = comptime util.cidOf(C);
-                if (self.current_iter.?.archetype.indexOfCID(cid) == null) return false;
+                if (self.entity_iter.?.archetype.indexOfCID(cid) == null) return false;
             }
             return true;
         }
@@ -507,6 +568,26 @@ test "World.{spawn,despawn,get}" {
         try testing.expectEqual(1000, v.x.*);
         try testing.expectEqual(2000, v.y.*);
     }
+    {
+        var p_mut = world.mut(PositionView, e2, 3).?;
+        p_mut.set(.x, 101);
+        p_mut.set(.y, 201);
+        try testing.expectEqual(@as(Version, 3), world.version(e2).?);
+        try testing.expectEqual(@as(Version, 3), world.versionPtr(e2).?.*);
+
+        var v_mut = world.mutAuto(Velocity, e2, 4).?;
+        v_mut.set(.x, 1001);
+        v_mut.set(.y, 2001);
+        try testing.expectEqual(@as(Version, 4), world.version(e2).?);
+        try testing.expectEqual(@as(Version, 4), world.versionPtr(e2).?.*);
+
+        const p = world.get(PositionView, e2).?;
+        try testing.expectEqual(101, p.x.*);
+        try testing.expectEqual(201, p.y.*);
+        const v = world.get(VelocityView, e2).?;
+        try testing.expectEqual(1001, v.x.*);
+        try testing.expectEqual(2001, v.y.*);
+    }
 
     try testing.expect(world.despawn(e2));
     try testing.expectEqual(1, world.count());
@@ -555,8 +636,8 @@ test "World.QueryIterator" {
     };
     const PositionView = struct {
         pub const Of = Position;
-        x: *u32,
-        y: *u32,
+        x: *const u32,
+        y: *const u32,
     };
     const Velocity = struct {
         x: u32,
@@ -564,8 +645,8 @@ test "World.QueryIterator" {
     };
     const VelocityView = struct {
         pub const Of = Velocity;
-        x: *u32,
-        y: *u32,
+        x: *const u32,
+        y: *const u32,
     };
 
     const alloc = testing.allocator;
@@ -668,6 +749,45 @@ test "World.QueryIterator" {
             }
         }
         try testing.expectEqual(2, count);
+    }
+    {
+        // Mutate via QueryIterator.mut
+        var it = world.queryMut(&[_]type{Position}, 1);
+        var mutated: usize = 0;
+        while (it.next()) |entity| {
+            if (entity == entities[1]) {
+                var p_mut = it.mut(PositionView);
+                p_mut.set(.x, 42);
+                p_mut.set(.y, 43);
+                mutated += 1;
+            }
+        }
+        try testing.expectEqual(1, mutated);
+        const p = world.get(PositionView, entities[1]).?;
+        try testing.expectEqual(42, p.x.*);
+        try testing.expectEqual(43, p.y.*);
+        try testing.expectEqual(@as(Version, 1), world.version(entities[1]).?);
+        try testing.expectEqual(@as(Version, 0), world.version(entities[3]).?);
+    }
+    {
+        // Mutate via QueryIterator.mutAuto
+        var it = world.queryMut(&[_]type{Velocity}, 2);
+        var mutated: usize = 0;
+        while (it.next()) |entity| {
+            if (entity == entities[0]) {
+                var v_mut = it.mutAuto(Velocity);
+                v_mut.set(.x, 111);
+                v_mut.set(.y, 222);
+                mutated += 1;
+            }
+        }
+        try testing.expectEqual(1, mutated);
+        const v = world.get(VelocityView, entities[0]).?;
+        try testing.expectEqual(111, v.x.*);
+        try testing.expectEqual(222, v.y.*);
+        try testing.expectEqual(@as(Version, 2), world.version(entities[0]).?);
+        try testing.expectEqual(@as(Version, 0), world.version(entities[2]).?);
+        try testing.expectEqual(@as(Version, 0), world.version(entities[4]).?);
     }
 }
 
@@ -893,3 +1013,5 @@ const archetype = @import("archetype.zig");
 
 const Archetype = archetype.Archetype;
 const Entity = archetype.Entity;
+const Version = archetype.Version;
+const Mutator = archetype.Mutator;

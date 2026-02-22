@@ -5,6 +5,7 @@ pub const Archetype = struct {
     meta: OwnedMeta,
     entities: EntityList,
     entities_index: EntityIndexHashmap,
+    entities_version: VersionList,
     components: []MultiField,
     hash: u64,
 
@@ -249,6 +250,7 @@ pub const Archetype = struct {
     pub const Iterator = struct {
         archetype: *Self,
         next_index: usize,
+        new_version: ?Version,
 
         pub fn next(self: *Iterator) ?Entity {
             if (self.next_index >= self.archetype.len()) {
@@ -268,12 +270,41 @@ pub const Archetype = struct {
             assert(self.next_index > 0 and self.next_index <= self.archetype.len());
             return self.archetype.atAuto(C, self.next_index - 1);
         }
+
+        pub fn mut(self: *const Iterator, comptime View: type) Mutator(View) {
+            const view = self.get(View);
+            const new_version = self.new_version.?;
+            const version_ptr = self.archetype.versionPtrAt(self.next_index - 1);
+            return .{
+                .view = view,
+                .update = .{ .ptr = version_ptr, .to = new_version },
+            };
+        }
+
+        pub fn mutAuto(self: *const Iterator, comptime C: type) Mutator(util.ViewOf(C)) {
+            const view = self.getAuto(C);
+            const new_version = self.new_version.?;
+            const version_ptr = self.archetype.versionPtrAt(self.next_index - 1);
+            return .{
+                .view = view,
+                .update = .{ .ptr = version_ptr, .to = new_version },
+            };
+        }
     };
 
     pub fn iter(self: *Self) Iterator {
         return .{
             .archetype = self,
             .next_index = 0,
+            .new_version = null,
+        };
+    }
+
+    pub fn iterMut(self: *Self, new_version: Version) Iterator {
+        return .{
+            .archetype = self,
+            .next_index = 0,
+            .new_version = new_version,
         };
     }
 
@@ -298,6 +329,7 @@ pub const Archetype = struct {
             .meta = meta,
             .entities = try EntityList.initCapacity(gpa, 1),
             .entities_index = EntityIndexHashmap.init(gpa),
+            .entities_version = try VersionList.initCapacity(gpa, 1),
             .components = comps,
             .hash = meta.hash(),
         };
@@ -311,6 +343,7 @@ pub const Archetype = struct {
         gpa.free(self.components);
         self.entities.deinit(gpa);
         self.entities_index.deinit();
+        self.entities_version.deinit(gpa);
         self.meta.deinit(gpa);
     }
 
@@ -379,9 +412,12 @@ pub const Archetype = struct {
 
     pub fn appendEntity(self: *Self, gpa: mem.Allocator, entity: Entity) !usize {
         const new_index = self.entities.items.len;
+        const new_version: Version = 0;
         try self.entities_index.put(entity, new_index);
         errdefer _ = self.entities_index.remove(entity);
         try self.entities.append(gpa, entity);
+        errdefer _ = self.entities.pop();
+        try self.entities_version.append(gpa, new_version);
         return new_index;
     }
 
@@ -410,7 +446,9 @@ pub const Archetype = struct {
 
     pub fn removeEntity(self: *Self, index: usize) Entity {
         const old_len = self.entities.items.len;
+        assert(index < old_len);
         const entity = self.entities.swapRemove(index);
+        _ = self.entities_version.swapRemove(index);
 
         const new_len = old_len - 1;
         if (index < new_len) {
@@ -482,8 +520,42 @@ pub const Archetype = struct {
         return out;
     }
 
+    pub fn mutAt(self: *const Self, comptime View: type, index: usize, new_version: Version) Mutator(View) {
+        const view = self.at(View, index);
+        const version_ptr = &self.entities_version.items[index];
+        return .{
+            .view = view,
+            .update = .{ .ptr = version_ptr, .to = new_version },
+        };
+    }
+
+    pub fn mutAtAuto(self: *const Self, comptime C: type, index: usize, new_version: Version) Mutator(util.ViewOf(C)) {
+        const view = self.atAuto(C, index);
+        const version_ptr = &self.entities_version.items[index];
+        return .{
+            .view = view,
+            .update = .{ .ptr = version_ptr, .to = new_version },
+        };
+    }
+
+    pub fn entityAt(self: *const Self, index: usize) Entity {
+        assert(index < self.len());
+        return self.entities.items[index];
+    }
+
+    pub fn versionAt(self: *const Self, index: usize) Version {
+        assert(index < self.len());
+        return self.entities_version.items[index];
+    }
+
+    pub fn versionPtrAt(self: *const Self, index: usize) *Version {
+        assert(index < self.len());
+        return &self.entities_version.items[index];
+    }
+
     pub fn len(self: *const Self) usize {
         const l = self.entities.items.len;
+        assert(self.entities_version.items.len == l);
         for (self.components) |comp|
             assert(l == comp.len());
         return l;
@@ -501,7 +573,7 @@ pub const Archetype = struct {
     }
 };
 
-fn Mutator(comptime View: type) type {
+pub fn Mutator(comptime View: type) type {
     comptime if (@typeInfo(View) != .@"struct")
         @compileError("View must be a struct");
     return struct {
@@ -907,6 +979,30 @@ test "Archetype.Iterator" {
         }
     }
     try testing.expectEqual(2, count);
+
+    {
+        const new_version: Version = 7;
+        var it_mut = archetype.iterMut(new_version);
+        while (it_mut.next()) |entity| {
+            if (entity == 0) {
+                var p_mut = it_mut.mut(PositionView);
+                p_mut.set(.x, 9);
+            } else if (entity == 1) {
+                var v_mut = it_mut.mutAuto(Velocity);
+                v_mut.set(.y, 99);
+            } else {
+                unreachable;
+            }
+        }
+
+        const p0 = archetype.at(PositionView, 0);
+        try testing.expectEqual(9, p0.x.*);
+        try testing.expectEqual(new_version, archetype.versionAt(0));
+
+        const v1 = archetype.at(VelocityView, 1);
+        try testing.expectEqual(99, v1.y.*);
+        try testing.expectEqual(new_version, archetype.versionAt(1));
+    }
 }
 
 test "Archetype with zero-field component" {
@@ -935,15 +1031,15 @@ test "Archetype with zero-field component" {
 
 test "Mutator" {
     const C = struct {
-        x: f32,
+        x: u8,
     };
     const V = struct {
         pub const Of = C;
-        x: *const f32,
+        x: *const u8,
     };
 
     var c: C = undefined;
-    c = .{ .x = 0.0 }; // make sure its allocated on stack
+    c = .{ .x = 0 }; // make sure its allocated on stack
     const v: V = .{ .x = &c.x };
 
     var version: Version = 0;
@@ -953,7 +1049,10 @@ test "Mutator" {
         .view = v,
         .update = .{ .ptr = &version, .to = next_version },
     };
-    mut.set(.x, 32.0);
+    mut.set(.x, 32);
+
+    try testing.expectEqual(32, c.x);
+    try testing.expectEqual(1, version);
 }
 
 const std = @import("std");
