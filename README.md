@@ -12,9 +12,15 @@ This ECS uses:
 ---
 
 ## Setup project
+
+This projects uses single header file of [ENet](https://github.com/zpl-c/enet) which you can get by:
+```bash
+mkdir -p third_party/enet/include
+curl -L https://github.com/zpl-c/enet/releases/latest/download/enet.h -o third_party/enet/include/enet.h
+```
+
 If you do not have raylib installed, which you can do by taking a look at [raylib-supported-platforms](https://www.raylib.com/#supported-platforms), then run:
 ```bash
-REPO=$PWD
 mkdir -p third_party
 
 # clone and compile raylib
@@ -27,14 +33,9 @@ mkdir -p $REPO/third_party/raylib/lib
 mkdir -p $REPO/third_party/raylib/include
 cp libraylib.a $REPO/third_party/raylib/lib/
 cp *.h $REPO/third_party/raylib/include/
-
-# now build project
-cd $REPO
-zig build run
 ```
 
-Otherwise you can just run:
-
+In order to build and run:
 ```bash
 zig build run
 ```
@@ -86,4 +87,7 @@ Source code is licensed under Apache-2.0 (see `LICENSE`).
 
 Third-party dependencies/assets may be under their own licenses (for example `resources/gltf/LICENSE`).
 
-This project uses raylib (zlib/libpng license). If you redistribute builds that include raylib, include raylib's license text alongside your third-party notices.
+This project uses:
+  - raylib (zlib/libpng license). 
+  - enet (MIT license)
+If you redistribute builds that include raylib, include license text alongside your third-party notices.

@@ -16,6 +16,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     engine_mod.addImport("engine", engine_mod);
+    engine_mod.addIncludePath(b.path("third_party/enet/include/"));
     if (!use_system_raylib) {
         engine_mod.addIncludePath(b.path("third_party/raylib/include/"));
     }
