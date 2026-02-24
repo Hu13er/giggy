@@ -73,9 +73,15 @@ pub const Time = struct {
     dt: f32,
     fixed_dt: f32,
     alpha: f32,
+    tick: u32,
 
     pub fn init() Time {
-        return .{ .dt = 0, .fixed_dt = 0, .alpha = 0 };
+        return .{
+            .dt = 0,
+            .fixed_dt = 0,
+            .alpha = 0,
+            .tick = 0,
+        };
     }
 };
 
@@ -106,13 +112,6 @@ test "App plugins, resources, and scheduler" {
     try testing.expect(removed_tacker);
     try testing.expect(tracker_deinit_called);
 }
-
-const std = @import("std");
-const mem = std.mem;
-const engine = @import("engine");
-const ecs = engine.ecs;
-const ResourceStore = @import("resources.zig").ResourceStore;
-const Scheduler = @import("scheduler.zig").Scheduler;
 
 const TestCounter = struct {
     value: u32,
@@ -150,3 +149,10 @@ fn testAddTwoSystem(app: *App) !void {
     const counter = app.getResource(TestCounter).?;
     counter.inc(2);
 }
+
+const std = @import("std");
+const mem = std.mem;
+const engine = @import("engine");
+const ecs = engine.ecs;
+const ResourceStore = @import("resources.zig").ResourceStore;
+const Scheduler = @import("scheduler.zig").Scheduler;

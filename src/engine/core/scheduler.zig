@@ -5,6 +5,7 @@ pub const Scheduler = struct {
     render: StepSchedule,
     fixed_dt: f32,
     accumulator: f32,
+    tick_num: u32,
     startup_ran: bool,
     dirty: bool,
     gpa: mem.Allocator,
@@ -34,6 +35,7 @@ pub const Scheduler = struct {
             .gpa = gpa,
             .fixed_dt = 1.0 / 60.0,
             .accumulator = 0,
+            .tick_num = 0,
             .startup_ran = false,
             .dirty = false,
         };
@@ -93,17 +95,22 @@ pub const Scheduler = struct {
                 t.*.dt = 0;
                 t.*.fixed_dt = self.fixed_dt;
                 t.*.alpha = 0;
+                t.*.tick = 0;
             }
             try self.runStep(.startup, app);
             self.startup_ran = true;
         }
 
         self.accumulator += dt;
-        while (self.accumulator >= self.fixed_dt) : (self.accumulator -= self.fixed_dt) {
+        while (self.accumulator >= self.fixed_dt) : ({
+            self.accumulator -= self.fixed_dt;
+            self.tick_num += 1;
+        }) {
             if (time) |t| {
                 t.*.dt = self.fixed_dt;
                 t.*.fixed_dt = self.fixed_dt;
                 t.*.alpha = 0;
+                t.*.tick = self.tick_num;
             }
             try self.runStep(.fixed_update, app);
         }
@@ -215,7 +222,6 @@ pub const Scheduler = struct {
             }
         }
     };
-
 };
 
 test "scheduler orders by dependencies and labels" {
