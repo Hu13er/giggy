@@ -292,11 +292,56 @@ pub const Archetype = struct {
         }
     };
 
+    pub const RowField = struct {
+        comp_meta: *const MultiField.Meta,
+        field_meta: *const Field.Meta,
+        bytes: []u8,
+    };
+
+    pub const RowIterator = struct {
+        archetype: *const Self,
+        row: usize,
+        comp_index: usize,
+        field_index: usize,
+
+        pub fn next(self: *RowIterator) ?RowField {
+            while (self.comp_index < self.archetype.components.len) {
+                const comp = self.archetype.components[self.comp_index];
+                if (self.field_index >= comp.fields.len) {
+                    self.comp_index += 1;
+                    self.field_index = 0;
+                    continue;
+                }
+
+                const comp_meta = self.archetype.meta.components[self.comp_index];
+                const field_meta = &comp_meta.fields[self.field_index];
+                const bytes = comp.fields[self.field_index].atRaw(self.row);
+                self.field_index += 1;
+                return .{
+                    .comp_meta = comp_meta,
+                    .field_meta = field_meta,
+                    .bytes = bytes,
+                };
+            }
+            return null;
+        }
+    };
+
     pub fn iter(self: *Self) Iterator {
         return .{
             .archetype = self,
             .next_index = 0,
             .new_version = null,
+        };
+    }
+
+    pub fn rowIter(self: *const Self, row: usize) RowIterator {
+        assert(row < self.len());
+        return .{
+            .archetype = self,
+            .row = row,
+            .comp_index = 0,
+            .field_index = 0,
         };
     }
 

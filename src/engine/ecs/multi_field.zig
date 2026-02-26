@@ -191,8 +191,8 @@ test "MultiField.Meta.from" {
         MultiField.Meta{
             .cid = 1,
             .fields = ([_]Field.Meta{
-                Field.Meta{ .index = 0, .name = "x", .size = 4, .alignment = 4 },
-                Field.Meta{ .index = 1, .name = "y", .size = 4, .alignment = 4 },
+                Field.Meta{ .index = 0, .name = "x", .size = 4, .alignment = 4, .@"type" = Field.RuntimeType.from(u32) },
+                Field.Meta{ .index = 1, .name = "y", .size = 4, .alignment = 4, .@"type" = Field.RuntimeType.from(u32) },
             })[0..],
         },
         MultiField.Meta.from(C1).*,
@@ -206,9 +206,9 @@ test "MultiField.Meta.from" {
         MultiField.Meta{
             .cid = util.hashTypeName(C2),
             .fields = ([_]Field.Meta{
-                Field.Meta{ .index = 0, .name = "a", .size = 1, .alignment = 1 },
-                Field.Meta{ .index = 1, .name = "b", .size = 4, .alignment = 4 },
-                Field.Meta{ .index = 2, .name = "c", .size = 2, .alignment = 2 },
+                Field.Meta{ .index = 0, .name = "a", .size = 1, .alignment = 1, .@"type" = Field.RuntimeType.from(u8) },
+                Field.Meta{ .index = 1, .name = "b", .size = 4, .alignment = 4, .@"type" = Field.RuntimeType.from(u32) },
+                Field.Meta{ .index = 2, .name = "c", .size = 2, .alignment = 2, .@"type" = Field.RuntimeType.from(u16) },
             })[0..],
         },
         MultiField.Meta.from(C2).*,

@@ -4,14 +4,124 @@ pub const Field = struct {
 
     const Self = @This();
 
-    const Buffer = std.ArrayListAligned(u8, max_alignment);
-    const max_alignment = mem.Alignment.@"64";
+    const Buffer = std.ArrayListAligned(u8, MAX_ALIGNMENT);
+    const MAX_ALIGNMENT = mem.Alignment.@"64";
+
+    pub const RuntimeType = struct {
+        tag: Tag,
+        bits: u16,
+        signedness: Signedness,
+        len: usize,
+        child: ?*const RuntimeType,
+
+        pub const Tag = enum(u8) {
+            bool,
+            int,
+            uint,
+            float,
+            pointer,
+            slice,
+            array,
+            @"struct",
+            @"enum",
+            optional,
+            other,
+        };
+
+        pub const Signedness = enum(u8) {
+            none,
+            signed,
+            unsigned,
+        };
+
+        pub fn from(comptime T: type) RuntimeType {
+            return switch (@typeInfo(T)) {
+                .bool => .{
+                    .tag = .bool,
+                    .bits = 1,
+                    .signedness = .none,
+                    .len = 0,
+                    .child = null,
+                },
+                .int => |i| .{
+                    .tag = if (i.signedness == .signed) .int else .uint,
+                    .bits = i.bits,
+                    .signedness = if (i.signedness == .signed) .signed else .unsigned,
+                    .len = 0,
+                    .child = null,
+                },
+                .float => |f| .{
+                    .tag = .float,
+                    .bits = f.bits,
+                    .signedness = .none,
+                    .len = 0,
+                    .child = null,
+                },
+                .pointer => |p| .{
+                    .tag = if (p.size == .slice) .slice else .pointer,
+                    .bits = 0,
+                    .signedness = .none,
+                    .len = 0,
+                    .child = runtimeTypePtr(p.child),
+                },
+                .array => |a| .{
+                    .tag = .array,
+                    .bits = 0,
+                    .signedness = .none,
+                    .len = a.len,
+                    .child = runtimeTypePtr(a.child),
+                },
+                .@"struct" => .{
+                    .tag = .@"struct",
+                    .bits = 0,
+                    .signedness = .none,
+                    .len = 0,
+                    .child = null,
+                },
+                .@"enum" => |e| .{
+                    .tag = .@"enum",
+                    .bits = @bitSizeOf(e.tag_type),
+                    .signedness = .none,
+                    .len = 0,
+                    .child = null,
+                },
+                .optional => |o| .{
+                    .tag = .optional,
+                    .bits = 0,
+                    .signedness = .none,
+                    .len = 0,
+                    .child = runtimeTypePtr(o.child),
+                },
+                else => .{
+                    .tag = .other,
+                    .bits = 0,
+                    .signedness = .none,
+                    .len = 0,
+                    .child = null,
+                },
+            };
+        }
+
+        pub fn isWireScalar(self: *const RuntimeType) bool {
+            return switch (self.tag) {
+                .bool, .int, .uint, .float => true,
+                else => false,
+            };
+        }
+
+        fn runtimeTypePtr(comptime T: type) *const RuntimeType {
+            return &struct {
+                pub const v: RuntimeType = RuntimeType.from(T);
+            }.v;
+        }
+    };
 
     pub const Meta = struct {
         index: usize,
         name: ?[:0]const u8,
         size: usize,
         alignment: usize,
+        @"type": RuntimeType,
 
         pub inline fn fromScalar(comptime T: type) *const Meta {
             return &struct {
@@ -20,6 +130,7 @@ pub const Field = struct {
                     .name = null,
                     .size = @sizeOf(T),
                     .alignment = @alignOf(T),
+                    .@"type" = RuntimeType.from(T),
                 };
             }.v;
         }
@@ -35,6 +146,7 @@ pub const Field = struct {
                         .name = field.name,
                         .size = @sizeOf(field.type),
                         .alignment = @alignOf(field.type),
+                        .@"type" = RuntimeType.from(field.type),
                     };
                 };
             }.v;
@@ -42,7 +154,7 @@ pub const Field = struct {
     };
 
     pub fn init(gpa: mem.Allocator, meta: *const Meta) !Self {
-        assert(meta.alignment <= max_alignment.toByteUnits());
+        assert(meta.alignment <= MAX_ALIGNMENT.toByteUnits());
         return .{
             .meta = meta,
             .buffer = try Buffer.initCapacity(gpa, 1),
@@ -114,6 +226,7 @@ test "Field.Meta.fromScalar" {
             .name = null,
             .size = 1,
             .alignment = 1,
+            .@"type" = Field.RuntimeType.from(u8),
         },
         Field.Meta.fromScalar(u8).*,
     );
@@ -123,6 +236,7 @@ test "Field.Meta.fromScalar" {
             .name = null,
             .size = 2,
             .alignment = 2,
+            .@"type" = Field.RuntimeType.from(u16),
         },
         Field.Meta.fromScalar(u16).*,
     );
@@ -139,6 +253,7 @@ test "Field.Meta.fromStruct" {
             .name = "a",
             .size = 1,
             .alignment = 1,
+            .@"type" = Field.RuntimeType.from(u8),
         },
         Field.Meta.fromStruct(T, 0).*,
     );
@@ -148,6 +263,7 @@ test "Field.Meta.fromStruct" {
             .name = "b",
             .size = 2,
             .alignment = 2,
+            .@"type" = Field.RuntimeType.from(u16),
         },
         Field.Meta.fromStruct(T, 1).*,
     );
