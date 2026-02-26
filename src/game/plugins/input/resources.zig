@@ -10,7 +10,7 @@ pub const PlayerInput = struct {
 
     pub fn init(gpa: mem.Allocator) !Self {
         return .{
-            .ring_buffer = .init(gpa, RING_BUFFER_SIZE),
+            .ring_buffer = try .init(gpa, RING_BUFFER_SIZE),
             .gpa = gpa,
         };
     }
@@ -20,6 +20,7 @@ pub const PlayerInput = struct {
     }
 
     pub fn queue(self: *Self, input: Values) void {
+        self.current = input;
         self.ring_buffer.queue(input);
     }
 
@@ -29,7 +30,7 @@ pub const PlayerInput = struct {
 };
 
 pub const Values = struct {
-    tick: u64,
+    tick: u32,
     move: xmath.Vec2,
 
     pub fn zero() @This() {

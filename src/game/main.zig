@@ -24,6 +24,7 @@ pub fn main() !void {
     try app.addPlugin(game_plugins.assets.Plugin, .{});
     try app.addPlugin(game_plugins.render.Plugin, .{});
     try app.addPlugin(game_plugins.physics.Plugin, .{});
+    try app.addPlugin(game_plugins.input.Plugin, .{});
     try app.addPlugin(game_plugins.player.Plugin, .{});
     try app.addPlugin(game_plugins.enemy.Plugin, .{});
     try app.addPlugin(game_plugins.camera.Plugin, .{

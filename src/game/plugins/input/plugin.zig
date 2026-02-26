@@ -1,8 +1,8 @@
 pub const Plugin = struct {
     pub fn build(self: @This(), app: *core.App) !void {
         _ = self;
-        app.insertResource(resources.PlayerInput, .{});
-        try app.addSystem(.update, systems.playerInputSystem, .{
+        _ = try app.insertResource(resources.PlayerInput, try .init(app.gpa));
+        try app.addSystem(.fixed_update, systems.playerInputSystem, .{
             .provides = &.{"input"},
         });
     }

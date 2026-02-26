@@ -1,28 +1,18 @@
 pub fn playerInputSystem(app: *core.App) !void {
-    const world_ref = &app.world;
-    const player_entity = app.getResource(resources.Player).?.entity;
-    const vel = world_ref.get(components.transform.VelocityView, player_entity).?;
-    const rot = world_ref.get(components.transform.RotationView, player_entity).?;
-    var x: f32 = 0;
-    var y: f32 = 0;
+    const time_resc = app.getResource(core.Time).?;
+    const input_resc = app.getResource(resources.PlayerInput).?;
 
-    if (app.getResource(fade_resources.ScreenFade)) |fade| {
-        if (fade.active()) {
-            vel.x.* = 0;
-            vel.y.* = 0;
-            return;
-        }
-    }
+    var move_axis: xmath.Vec2 = .{ .x = 0, .y = 0 };
 
     if (rl.IsKeyDown(rl.KEY_D)) {
-        x = 10;
+        move_axis.x = 1;
     } else if (rl.IsKeyDown(rl.KEY_A)) {
-        x = -10;
+        move_axis.x = -1;
     }
     if (rl.IsKeyDown(rl.KEY_W)) {
-        y = -10;
+        move_axis.y = -1;
     } else if (rl.IsKeyDown(rl.KEY_S)) {
-        y = 10;
+        move_axis.y = 1;
     }
 
     if (rl.IsGamepadAvailable(0)) {
@@ -38,86 +28,23 @@ pub fn playerInputSystem(app: *core.App) !void {
         if (rl.IsGamepadButtonDown(0, rl.GAMEPAD_BUTTON_LEFT_FACE_DOWN)) gy = 1;
 
         if (@abs(gx) > 0 or @abs(gy) > 0) {
-            x = gx;
-            y = gy;
+            move_axis.x = gx;
+            move_axis.y = gy;
         }
     }
 
-    const l = std.math.sqrt(x * x + y * y);
-    if (l > 0.1) {
-        x = x / l * 250.0;
-        y = y / l * 250.0;
-
-        const angle = std.math.atan2(y, -x);
-        rot.target_teta.* = std.math.radiansToDegrees(angle) - 45.0;
-    }
-    vel.x.* = x;
-    vel.y.* = y;
-}
-
-pub fn playerSpawnSystem(app: *core.App) !void {
-    var it_player = app.world.query(&[_]type{
-        components.player.Player,
-        components.transform.Position,
-        components.transform.Rotation,
-        components.world.Room,
+    input_resc.queue(.{
+        .tick = time_resc.tick,
+        .move = move_axis.normalize(),
     });
-    while (it_player.next()) |_| {
-        const pos = it_player.get(components.transform.PositionView);
-        const rot = it_player.get(components.transform.RotationView);
-        const player_view = it_player.get(components.player.PlayerView);
-        const room = it_player.get(components.world.RoomView);
-        if (!player_view.just_spawned.*) continue;
-
-        const desired_spawn_id = player_view.spawn_id.*;
-        var best_fallback_id: ?u8 = null;
-        var best_fallback_x: f32 = 0;
-        var best_fallback_y: f32 = 0;
-        var found_x: f32 = 0;
-        var found_y: f32 = 0;
-        var found = false;
-
-        var it_spawn = app.world.query(&[_]type{ components.world.SpawnPoint, components.transform.Position, components.world.Room });
-        while (it_spawn.next()) |_| {
-            const sp = it_spawn.get(components.world.SpawnPointView);
-            const sp_pos = it_spawn.get(components.transform.PositionView);
-            const sp_room = it_spawn.get(components.world.RoomView);
-            if (sp_room.id.* != room.id.*) continue;
-
-            if (best_fallback_id == null or sp.id.* < best_fallback_id.?) {
-                best_fallback_id = sp.id.*;
-                best_fallback_x = sp_pos.x.*;
-                best_fallback_y = sp_pos.y.*;
-            }
-
-            if (desired_spawn_id != 0 and sp.id.* == desired_spawn_id) {
-                found_x = sp_pos.x.*;
-                found_y = sp_pos.y.*;
-                found = true;
-                break;
-            }
-        }
-
-        const x = if (found) found_x else if (best_fallback_id != null) best_fallback_x else pos.x.*;
-        const y = if (found) found_y else if (best_fallback_id != null) best_fallback_y else pos.y.*;
-
-        rot.teta.* = 45;
-        rot.target_teta.* = 45;
-        pos.x.* = x;
-        pos.y.* = y;
-        pos.prev_x.* = x;
-        pos.prev_y.* = y;
-        player_view.just_spawned.* = false;
-        player_view.spawn_id.* = 0;
-    }
 }
 
 const std = @import("std");
 
 const engine = @import("engine");
 const core = engine.core;
+const xmath = engine.math;
 const rl = engine.raylib;
 const game = @import("game");
 const components = game.components;
-const resources = game.plugins.player.resources;
-const fade_resources = game.plugins.fade.resources;
+const resources = game.plugins.input.resources;

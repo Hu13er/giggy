@@ -1,10 +1,11 @@
+const PLAYER_SPEED: f32 = 250;
+
 pub fn playerInputSystem(app: *core.App) !void {
-    const world_ref = &app.world;
+    const input_resc = app.getResource(game.plugins.input.resources.PlayerInput).?;
+
     const player_entity = app.getResource(resources.Player).?.entity;
-    const vel = world_ref.get(components.transform.VelocityView, player_entity).?;
-    const rot = world_ref.get(components.transform.RotationView, player_entity).?;
-    var x: f32 = 0;
-    var y: f32 = 0;
+    const vel = app.world.get(components.transform.VelocityView, player_entity).?;
+    const rot = app.world.get(components.transform.RotationView, player_entity).?;
 
     if (app.getResource(fade_resources.ScreenFade)) |fade| {
         if (fade.active()) {
@@ -14,45 +15,16 @@ pub fn playerInputSystem(app: *core.App) !void {
         }
     }
 
-    if (rl.IsKeyDown(rl.KEY_D)) {
-        x = 10;
-    } else if (rl.IsKeyDown(rl.KEY_A)) {
-        x = -10;
-    }
-    if (rl.IsKeyDown(rl.KEY_W)) {
-        y = -10;
-    } else if (rl.IsKeyDown(rl.KEY_S)) {
-        y = 10;
-    }
-
-    if (rl.IsGamepadAvailable(0)) {
-        var gx = rl.GetGamepadAxisMovement(0, rl.GAMEPAD_AXIS_LEFT_X);
-        var gy = rl.GetGamepadAxisMovement(0, rl.GAMEPAD_AXIS_LEFT_Y);
-        const deadzone: f32 = 0.2;
-        if (@abs(gx) < deadzone) gx = 0;
-        if (@abs(gy) < deadzone) gy = 0;
-
-        if (rl.IsGamepadButtonDown(0, rl.GAMEPAD_BUTTON_LEFT_FACE_LEFT)) gx = -1;
-        if (rl.IsGamepadButtonDown(0, rl.GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) gx = 1;
-        if (rl.IsGamepadButtonDown(0, rl.GAMEPAD_BUTTON_LEFT_FACE_UP)) gy = -1;
-        if (rl.IsGamepadButtonDown(0, rl.GAMEPAD_BUTTON_LEFT_FACE_DOWN)) gy = 1;
-
-        if (@abs(gx) > 0 or @abs(gy) > 0) {
-            x = gx;
-            y = gy;
-        }
-    }
-
-    const l = std.math.sqrt(x * x + y * y);
-    if (l > 0.1) {
-        x = x / l * 250.0;
-        y = y / l * 250.0;
-
-        const angle = std.math.atan2(y, -x);
+    const move_axis = input_resc.current.move.scale(PLAYER_SPEED);
+    if (move_axis.abs() > 0.1) {
+        const angle = std.math.atan2(move_axis.y, -move_axis.x);
         rot.target_teta.* = std.math.radiansToDegrees(angle) - 45.0;
+        vel.x.* = move_axis.x;
+        vel.y.* = move_axis.y;
+    } else {
+        vel.x.* = 0;
+        vel.y.* = 0;
     }
-    vel.x.* = x;
-    vel.y.* = y;
 }
 
 pub fn playerSpawnSystem(app: *core.App) !void {

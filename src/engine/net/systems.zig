@@ -1,3 +1,7 @@
+pub fn networkInitSystem(app: *core.App) !void {
+    _ = app;
+}
+
 const std = @import("std");
 
 const engine = @import("engine");

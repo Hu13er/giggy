@@ -8,7 +8,7 @@ pub fn RingBuffer(comptime T: type) type {
         const Self = @This();
 
         pub fn init(gpa: mem.Allocator, size: usize) !Self {
-            return .{ .buffer = gpa.alloc(T, size) };
+            return .{ .buffer = try gpa.alloc(T, size) };
         }
 
         pub fn initBuffered(buffer: []T) Self {
