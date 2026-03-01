@@ -6,6 +6,7 @@ pub const enemy = @import("plugins/enemy/root.zig");
 pub const fade = @import("plugins/fade/root.zig");
 pub const input = @import("plugins/input/root.zig");
 pub const level = @import("plugins/level/root.zig");
+pub const net = @import("plugins/net/root.zig");
 pub const physics = @import("plugins/physics/root.zig");
 pub const player = @import("plugins/player/root.zig");
 pub const render = @import("plugins/render/root.zig");

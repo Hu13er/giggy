@@ -1,10 +1,10 @@
 pub const Plugin = struct {
-    serverConfig: ?resources.Server.Config = null,
+    serverConfig: ?resources.HostManager.ServerConfig = null,
 
     pub fn build(self: @This(), app: *core.App) !void {
         try app.insertResource(resources.ENetInitializer, .{});
         if (self.serverConfig) |cfg| {
-            try app.insertResource(resources.Server, try .init(cfg));
+            try app.insertResource(resources.HostManager, try .init(cfg));
             try app.addSystem(.startup, systems.networkInit, .{
                 .provides = &.{"network.init"},
             });
