@@ -1,9 +1,9 @@
 pub const Plugin = struct {
-    serverConfig: ?resources.HostManager.ServerConfig = null,
+    config: ?resources.HostManager.Config = null,
 
     pub fn build(self: @This(), app: *core.App) !void {
         try app.insertResource(resources.ENetInitializer, .{});
-        if (self.serverConfig) |cfg| {
+        if (self.config) |cfg| {
             try app.insertResource(resources.HostManager, try .init(cfg));
             try app.addSystem(.startup, systems.networkInit, .{
                 .provides = &.{"network.init"},

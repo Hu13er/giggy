@@ -36,7 +36,7 @@ If you are unsure where to help, pick something that aligns with the roadmap (`R
 
 - Run engine tests: `zig test src/engine/$MODULE`
 - If raylib headers are not in a standard include path, add includes, e.g.:
-  - `zig test --dep engine -Mengine=src/engine/root.zig -I third_party/raylib/include -isystem /usr/include/`
+  - zig test --dep engine -Mengine=src/engine/root.zig -I third_party/raylib/include -I third_party/enet/include -isystem /usr/include/
 
 ## Submitting changes
 
