@@ -112,6 +112,13 @@ pub const Archetype = struct {
                 return .{ .components = self.components };
             }
 
+            // init gets ownership of components slice
+            pub fn init(components: []const *const MultiField.Meta) !OwnedMeta {
+                comptime if (kind != .owned)
+                    @compileError("Meta(.static) cannot be initialized");
+                return .{ .components = components };
+            }
+
             pub fn deinit(self: *const MetaSelf, gpa: mem.Allocator) void {
                 comptime if (kind != .owned)
                     @compileError("Meta(.static) cannot be deinitialized");
@@ -436,6 +443,16 @@ pub const Archetype = struct {
         try self.appendPartialBytes(gpa, self.meta.view(), bytes);
         errdefer self.setComponentsSize(before_size);
         _ = try self.appendEntity(gpa, entity);
+    }
+
+    pub fn appendUndefined(self: *Self, gpa: mem.Allocator, entity: Entity) !usize {
+        const before_size = self.len();
+        errdefer self.setComponentsSize(before_size);
+
+        for (self.components) |*comp|
+            try comp.appendUndefined(gpa);
+
+        return try self.appendEntity(gpa, entity);
     }
 
     pub fn appendPartialBytes(self: *Self, gpa: mem.Allocator, meta: StaticMeta, bytes: []const u8) !void {

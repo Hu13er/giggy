@@ -58,6 +58,22 @@ pub const World = struct {
             self.next_entity = entity + 1;
     }
 
+    pub const ArchetypeEntry = struct {
+        archetype: *Archetype,
+        row: usize,
+    };
+
+    pub fn spawnUndefined(self: *Self, entity: Entity, meta: *const Archetype.StaticMeta) !ArchetypeEntry {
+        if (self.entity_archetype.contains(entity))
+            return error.EntityAlreadyExists;
+        var arch = try self.getOrCreateArchetype(meta.*);
+        const row = try arch.appendUndefined(self.gpa, entity);
+        try self.entity_archetype.put(entity, arch.hash);
+        if (entity >= self.next_entity)
+            self.next_entity = entity + 1;
+        return .{ .archetype = arch, .row = row };
+    }
+
     pub fn reserveEntity(self: *Self) Entity {
         const e = self.next_entity;
         self.next_entity += 1;
@@ -340,31 +356,31 @@ pub const World = struct {
         return to_remove.toOwnedSlice(gpa);
     }
 
-    fn getOrCreateArchetype(self: *Self, meta: Archetype.StaticMeta) !*Archetype {
+    pub fn getOrCreateArchetype(self: *Self, meta: Archetype.StaticMeta) !*Archetype {
         const hash = meta.hash();
         if (self.getArchetype(hash)) |arch_ptr| return arch_ptr;
         return self.createArchetype(meta);
     }
 
-    fn getArchetype(self: *const Self, hash: u64) ?*Archetype {
+    pub fn getArchetype(self: *const Self, hash: u64) ?*Archetype {
         return self.archetypes.getPtr(hash);
     }
 
-    fn createArchetype(self: *Self, meta: Archetype.StaticMeta) !*Archetype {
+    pub fn createArchetype(self: *Self, meta: Archetype.StaticMeta) !*Archetype {
         const hash = meta.hash();
         const arch = try Archetype.init(self.gpa, meta);
         try self.archetypes.put(hash, arch);
         return self.archetypes.getPtr(hash) orelse unreachable;
     }
 
-    fn createArchetypeOwned(self: *Self, meta: Archetype.OwnedMeta) !*Archetype {
+    pub fn createArchetypeOwned(self: *Self, meta: Archetype.OwnedMeta) !*Archetype {
         const hash = meta.hash();
         const arch = try Archetype.initOwned(self.gpa, meta);
         try self.archetypes.put(hash, arch);
         return self.archetypes.getPtr(hash) orelse unreachable;
     }
 
-    fn removeArchetypeIfEmpty(self: *Self, entry: ArchetypeHashMap.Entry) bool {
+    pub fn removeArchetypeIfEmpty(self: *Self, entry: ArchetypeHashMap.Entry) bool {
         if (entry.value_ptr.len() > 0) return false;
         entry.value_ptr.deinit(self.gpa);
         return self.archetypes.remove(entry.key_ptr.*);

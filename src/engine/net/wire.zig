@@ -1,48 +1,178 @@
-pub fn writeArchetypeRow(writer: anytype, archetype: *const ecs.Archetype, row: usize) (Error || @TypeOf(writer).Error)!void {
-    var it = archetype.rowIter(row);
-    while (it.next()) |field| {
-        try writeField(writer, field.field_meta, field.bytes);
-    }
-}
+// Protocol:
+//
+// [N: u8 - Num of Archetypes]
+// [M-0: u8 - Num of components] [CID-0: u32] ... [CID-M-0]
+// ...
+// [M-N: u8 - Num of components] ...
+// [K: u16 - Num of entities]
+// [I-0: u8 - Archetype index] [Entity-0: u32 - Entity ID] [Comp-0] ...
+// ...
+// [I-K: u8 - Archetype index] [Entity-0: u32 - Entity ID] [Comp-0] ...
+//
+// Note: Assumes CIDs are sorted
 
-pub fn readArchetypeRow(reader: anytype, archetype: *ecs.Archetype, row: usize) (Error || @TypeOf(reader).NoEofError)!void {
-    var it = archetype.rowIter(row);
-    while (it.next()) |field| {
-        try readField(reader, field.field_meta, field.bytes);
-    }
-}
+const ProtocolWriter = struct {
+    entities: EntityList,
+    archetypes: ArchetypeSet,
+    gpa: mem.Allocator,
 
-fn writeField(writer: anytype, meta: *const ecs.Field.Meta, bytes: []const u8) (Error || @TypeOf(writer).Error)!void {
-    if (!meta.type.isWireScalar()) return error.UnsupportedFieldType;
-    switch (meta.type.tag) {
-        .bool => {
-            if (bytes.len != 1) return error.UnsupportedBitSize;
-            try writer.writeByte(if (bytes[0] != 0) 1 else 0);
-        },
-        .int => try writeInt(writer, true, meta.size, bytes),
-        .uint => try writeInt(writer, false, meta.size, bytes),
-        .float => try writeFloat(writer, meta.size, bytes),
-        else => return error.UnsupportedFieldType,
-    }
-}
+    const Self = @This();
 
-fn readField(reader: anytype, meta: *const ecs.Field.Meta, bytes: []u8) (Error || @TypeOf(reader).NoEofError)!void {
-    if (!meta.type.isWireScalar()) return error.UnsupportedFieldType;
-    switch (meta.type.tag) {
-        .bool => {
-            if (bytes.len != 1) return error.UnsupportedBitSize;
-            const b = try reader.readByte();
-            if (b > 1) return error.InvalidBool;
-            bytes[0] = b;
-        },
-        .int => try readInt(reader, true, meta.size, bytes),
-        .uint => try readInt(reader, false, meta.size, bytes),
-        .float => try readFloat(reader, meta.size, bytes),
-        else => return error.UnsupportedFieldType,
-    }
-}
+    const ArchetypeSet = std.AutoArrayHashMap(*const ecs.Archetype, void);
 
-fn writeInt(writer: anytype, signed: bool, size: usize, bytes: []const u8) (Error || @TypeOf(writer).Error)!void {
+    const EntityList = std.ArrayList(Entity);
+    const Entity = struct {
+        archetype: *const ecs.Archetype,
+        row: usize,
+    };
+
+    pub fn init(gpa: mem.Allocator) Self {
+        return .{
+            .entities = .empty,
+            .archetypes = .init(gpa),
+            .gpa = gpa,
+        };
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.entities.deinit(self.gpa);
+        self.archetypes.deinit();
+    }
+
+    pub fn push(self: *Self, archetype: *const ecs.Archetype, row: usize) !void {
+        try self.entities.append(self.gpa, .{
+            .archetype = archetype,
+            .row = row,
+        });
+        errdefer _ = self.entities.pop();
+        try self.archetypes.put(archetype, {});
+    }
+
+    pub fn flush(self: *Self, writer: Writer) !void {
+        if (self.archetypes.count() > std.math.maxInt(u8))
+            return Error.TooManyArchetypes;
+        if (self.entities.items.len > std.math.maxInt(u16))
+            return Error.TooManyEntities;
+
+        const archs = self.archetypes.keys();
+        try writer.writeInt(u8, @intCast(archs.len), .little);
+        for (archs) |a| {
+            try writer.writeInt(u8, @intCast(a.components.len), .little);
+            for (a.components) |c|
+                try writer.writeInt(u32, c.meta.cid, .little);
+        }
+
+        try writer.writeInt(u16, @intCast(self.entities.items.len), .little);
+        for (self.entities.items) |e| {
+            const idx: usize = for (archs, 0..) |a, i| {
+                if (a == e.archetype) break i;
+            } else unreachable;
+            try writer.writeInt(u8, @intCast(idx), .little);
+            try writeArchetypeRow(writer, e.archetype, e.row);
+        }
+
+        self.entities.clearRetainingCapacity();
+        self.archetypes.clearRetainingCapacity();
+    }
+
+    fn writeArchetypeRow(writer: anytype, archetype: *const ecs.Archetype, row: usize) !void {
+        var it = archetype.rowIter(row);
+        while (it.next()) |field| {
+            try writeField(writer, field.field_meta, field.bytes);
+        }
+    }
+
+    fn writeField(writer: anytype, meta: *const ecs.Field.Meta, bytes: []const u8) !void {
+        if (!meta.type.isWireScalar()) return error.UnsupportedFieldType;
+        switch (meta.type.tag) {
+            .bool => {
+                if (bytes.len != 1) return error.UnsupportedBitSize;
+                try writer.writeByte(if (bytes[0] != 0) 1 else 0);
+            },
+            .int => try writeInt(writer, true, meta.size, bytes),
+            .uint => try writeInt(writer, false, meta.size, bytes),
+            .float => try writeFloat(writer, meta.size, bytes),
+            else => return error.UnsupportedFieldType,
+        }
+    }
+};
+
+pub const ProtocolReader = struct {
+    registry: ecs.registry.ComponentRegistry,
+
+    const Self = @This();
+
+    pub fn init(registry: ecs.registry.ComponentRegistry) Self {
+        return .{
+            .registry = registry,
+        };
+    }
+
+    pub fn deinit(self: *Self) void {
+        _ = self;
+    }
+
+    pub fn store(self: *Self, world: *ecs.World, reader: Reader) !void {
+        const n_arch = reader.takeInt(u8, .little);
+        const arch_metas_buffer: [std.math.maxInt(u8)]ecs.Archetype.StaticMeta = undefined;
+        var arch_metas = std.ArrayList(ecs.Archetype.StaticMeta).initBuffer(arch_metas_buffer);
+        for (0..n_arch) |_| {
+            const m_cids = reader.takeInt(u8, .little);
+
+            const comps_buffer: [std.math.maxInt(u8)]*const ecs.MultiField.Meta = undefined;
+            var comps = std.ArrayList(*const ecs.MultiField.Meta).initBuffer(comps_buffer);
+            for (0..m_cids) |_| {
+                const cid = reader.takeInt(u32, .little);
+                const meta = self.registry.getByCidOrNull(cid) orelse return Error.UnknownComponent;
+                comps.appendAssumeCapacity(meta);
+            }
+
+            const meta =
+                ecs.Archetype.OwnedMeta
+                    .init(comps.items)
+                    .view();
+            arch_metas.appendAssumeCapacity(meta);
+        }
+
+        const k_entities = reader.takeInt(u16, .little);
+        for (0..k_entities) |_| {
+            const idx = reader.takeInt(u8, .little);
+            const e = reader.takeInt(u32, .little);
+            _ = world.despawn(e);
+
+            // TODO: we are abusing StaticMeta here.
+            // it already works since world.spawn* copies memory.
+            // but StaticMeta suggests that it has static lifetime
+            const entry = try world.spawnUndefined(e, &arch_metas[idx]);
+            try readArchetypeRow(reader, entry.archetype, entry.row);
+        }
+    }
+
+    fn readArchetypeRow(reader: anytype, archetype: *ecs.Archetype, row: usize) !void {
+        var it = archetype.rowIter(row);
+        while (it.next()) |field| {
+            try readField(reader, field.field_meta, field.bytes);
+        }
+    }
+
+    fn readField(reader: anytype, meta: *const ecs.Field.Meta, bytes: []u8) !void {
+        if (!meta.type.isWireScalar()) return error.UnsupportedFieldType;
+        switch (meta.type.tag) {
+            .bool => {
+                if (bytes.len != 1) return error.UnsupportedBitSize;
+                const b = try reader.readByte();
+                if (b > 1) return error.InvalidBool;
+                bytes[0] = b;
+            },
+            .int => try readInt(reader, true, meta.size, bytes),
+            .uint => try readInt(reader, false, meta.size, bytes),
+            .float => try readFloat(reader, meta.size, bytes),
+            else => return error.UnsupportedFieldType,
+        }
+    }
+};
+
+fn writeInt(writer: anytype, signed: bool, size: usize, bytes: []const u8) !void {
     switch (size) {
         1 => if (signed) {
             const v = std.mem.bytesAsValue(i8, bytes).*;
@@ -76,7 +206,7 @@ fn writeInt(writer: anytype, signed: bool, size: usize, bytes: []const u8) (Erro
     }
 }
 
-fn readInt(reader: anytype, signed: bool, size: usize, bytes: []u8) (Error || @TypeOf(reader).NoEofError)!void {
+fn readInt(reader: anytype, signed: bool, size: usize, bytes: []u8) !void {
     switch (size) {
         1 => if (signed) {
             const v = try reader.readInt(i8, .little);
@@ -110,7 +240,7 @@ fn readInt(reader: anytype, signed: bool, size: usize, bytes: []u8) (Error || @T
     }
 }
 
-fn writeFloat(writer: anytype, size: usize, bytes: []const u8) (Error || @TypeOf(writer).Error)!void {
+fn writeFloat(writer: anytype, size: usize, bytes: []const u8) !void {
     switch (size) {
         2 => {
             const v = std.mem.bytesAsValue(f16, bytes).*;
@@ -131,7 +261,7 @@ fn writeFloat(writer: anytype, size: usize, bytes: []const u8) (Error || @TypeOf
     }
 }
 
-fn readFloat(reader: anytype, size: usize, bytes: []u8) (Error || @TypeOf(reader).NoEofError)!void {
+fn readFloat(reader: anytype, size: usize, bytes: []u8) !void {
     switch (size) {
         2 => {
             const bits = try reader.readInt(u16, .little);
@@ -153,58 +283,19 @@ fn readFloat(reader: anytype, size: usize, bytes: []u8) (Error || @TypeOf(reader
 }
 
 pub const Error = error{
+    TooManyArchetypes,
+    TooManyEntities,
+    UnknownComponent,
     UnsupportedFieldType,
     UnsupportedBitSize,
     InvalidBool,
 };
 
-test "wire archetype row roundtrip" {
-    const alloc = testing.allocator;
-
-    const Pos = struct {
-        pub const cid = 1;
-        x: f32,
-        y: f32,
-    };
-    const Flags = struct {
-        pub const cid = 2;
-        alive: bool,
-        team: u8,
-    };
-
-    const meta: ecs.Archetype.StaticMeta = .from(&[_]type{ Pos, Flags });
-    var arch = try ecs.Archetype.init(alloc, meta);
-    defer arch.deinit(alloc);
-
-    try arch.append(alloc, 1, .{
-        Pos{ .x = 1.25, .y = -2.5 },
-        Flags{ .alive = true, .team = 3 },
-    });
-
-    var buffer: [64]u8 = undefined;
-    var stream = std.io.fixedBufferStream(&buffer);
-    try writeArchetypeRow(stream.writer(), &arch, 0);
-
-    var new_arch = try ecs.Archetype.init(alloc, meta);
-    defer new_arch.deinit(alloc);
-    try new_arch.append(alloc, 2, .{
-        Pos{ .x = 0, .y = 0 },
-        Flags{ .alive = false, .team = 0 },
-    });
-
-    stream = std.io.fixedBufferStream(stream.getWritten());
-    try readArchetypeRow(stream.reader(), &new_arch, 0);
-
-    const pos = new_arch.atAuto(Pos, 0);
-    const flags = new_arch.atAuto(Flags, 0);
-    try testing.expectEqual(@as(f32, 1.25), pos.x.*);
-    try testing.expectEqual(@as(f32, -2.5), pos.y.*);
-    try testing.expectEqual(true, flags.alive.*);
-    try testing.expectEqual(@as(u8, 3), flags.team.*);
-}
-
 const std = @import("std");
+const mem = std.mem;
 const testing = std.testing;
+const Writer = std.io.Writer;
+const Reader = std.io.Reader;
 
 const engine = @import("engine");
 const ecs = engine.ecs;

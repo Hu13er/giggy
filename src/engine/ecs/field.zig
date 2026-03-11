@@ -121,7 +121,7 @@ pub const Field = struct {
         name: ?[:0]const u8,
         size: usize,
         alignment: usize,
-        @"type": RuntimeType,
+        type: RuntimeType,
 
         pub inline fn fromScalar(comptime T: type) *const Meta {
             return &struct {
@@ -130,7 +130,7 @@ pub const Field = struct {
                     .name = null,
                     .size = @sizeOf(T),
                     .alignment = @alignOf(T),
-                    .@"type" = RuntimeType.from(T),
+                    .type = RuntimeType.from(T),
                 };
             }.v;
         }
@@ -146,7 +146,7 @@ pub const Field = struct {
                         .name = field.name,
                         .size = @sizeOf(field.type),
                         .alignment = @alignOf(field.type),
-                        .@"type" = RuntimeType.from(field.type),
+                        .type = RuntimeType.from(field.type),
                     };
                 };
             }.v;
@@ -174,6 +174,11 @@ pub const Field = struct {
     pub fn appendBytes(self: *Self, gpa: mem.Allocator, data: []const u8) !void {
         assert(data.len == self.meta.size);
         try self.buffer.appendSlice(gpa, data);
+    }
+
+    pub fn appendUndefined(self: *Self, gpa: mem.Allocator) !void {
+        const u: u8 = undefined;
+        try self.buffer.appendNTimes(gpa, u, self.meta.size);
     }
 
     // remove `index` from field
@@ -226,7 +231,7 @@ test "Field.Meta.fromScalar" {
             .name = null,
             .size = 1,
             .alignment = 1,
-            .@"type" = Field.RuntimeType.from(u8),
+            .type = Field.RuntimeType.from(u8),
         },
         Field.Meta.fromScalar(u8).*,
     );
@@ -236,7 +241,7 @@ test "Field.Meta.fromScalar" {
             .name = null,
             .size = 2,
             .alignment = 2,
-            .@"type" = Field.RuntimeType.from(u16),
+            .type = Field.RuntimeType.from(u16),
         },
         Field.Meta.fromScalar(u16).*,
     );
@@ -253,7 +258,7 @@ test "Field.Meta.fromStruct" {
             .name = "a",
             .size = 1,
             .alignment = 1,
-            .@"type" = Field.RuntimeType.from(u8),
+            .type = Field.RuntimeType.from(u8),
         },
         Field.Meta.fromStruct(T, 0).*,
     );
@@ -263,7 +268,7 @@ test "Field.Meta.fromStruct" {
             .name = "b",
             .size = 2,
             .alignment = 2,
-            .@"type" = Field.RuntimeType.from(u16),
+            .type = Field.RuntimeType.from(u16),
         },
         Field.Meta.fromStruct(T, 1).*,
     );

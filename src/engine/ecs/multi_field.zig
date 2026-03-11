@@ -158,6 +158,20 @@ pub const MultiField = struct {
         assert(idx == expected_len);
     }
 
+    pub fn appendUndefined(self: *Self, gpa: mem.Allocator) !void {
+        const expected_len = self.meta.size;
+        const before_size = self.len();
+        errdefer self.setSize(before_size);
+
+        var idx: usize = 0;
+        for (self.fields) |*f| {
+            const size = f.meta.size;
+            try f.appendUndefined(gpa);
+            idx += size;
+        }
+        assert(idx == expected_len);
+    }
+
     pub fn remove(self: *Self, index: usize) void {
         assert(index < self.len());
         self.length -= 1;
