@@ -9,7 +9,8 @@ Thanks for your interest in helping! This project is a handcrafted ECS + game in
 3) Build and run:
 
 ```bash
-zig build run
+zig build run-server
+zig build run-client
 ```
 
 Example targets:

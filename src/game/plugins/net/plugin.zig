@@ -9,13 +9,16 @@ pub const Plugin = struct {
     pub fn build(self: @This(), app: *core.App) !void {
         switch (self.host_type) {
             .client => {
-                app.addSystem(.fixed_update, systems.clientLoopSystem, .{
-                    .provides = &.{"network.tick"},
-                    .after_all_labels = &.{"input"},
-                });
+                // try app.addSystem(.fixed_update, systems.clientLoopSystem, .{
+                //     .provides = &.{"network.tick"},
+                //     .after_all_labels = &.{"input"},
+                // });
             },
             .server => {
-                app.addSystem(.fixed_update, systems.serverLoopSystem, .{
+                try app.addSystem(.startup, systems.serverInitSystem, .{
+                    .provides = &.{"network.init"},
+                });
+                try app.addSystem(.fixed_update, systems.serverLoopSystem, .{
                     .provides = &.{"network.tick"},
                 });
             },

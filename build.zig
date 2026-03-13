@@ -17,16 +17,8 @@ pub fn build(b: *std.Build) void {
     });
     engine_mod.addImport("engine", engine_mod);
     engine_mod.addIncludePath(b.path("third_party/enet/include/"));
-    if (!use_system_raylib) {
-        engine_mod.addIncludePath(b.path("third_party/raylib/include/"));
-    }
+    engine_mod.addIncludePath(b.path("third_party/raylib/include/"));
 
-    const exe_mod = b.createModule(.{
-        .root_source_file = b.path("src/game/main.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    exe_mod.addImport("engine", engine_mod);
     const game_mod = b.createModule(.{
         .root_source_file = b.path("src/game/root.zig"),
         .target = target,
@@ -34,32 +26,72 @@ pub fn build(b: *std.Build) void {
     });
     game_mod.addImport("engine", engine_mod);
     game_mod.addImport("game", game_mod);
-    exe_mod.addImport("game", game_mod);
 
-    const exe = b.addExecutable(.{
-        .name = "giggy",
-        .root_module = exe_mod,
+    const server_mod = b.createModule(.{
+        .root_source_file = b.path("src/game/main_server.zig"),
+        .target = target,
+        .optimize = optimize,
     });
+    server_mod.addImport("engine", engine_mod);
+    server_mod.addImport("game", game_mod);
 
-    exe.linkLibC();
+    const server_exe = b.addExecutable(.{
+        .name = "giggy-server",
+        .root_module = server_mod,
+    });
+    server_exe.linkLibC();
 
+    server_exe.addIncludePath(b.path("third_party/raylib/include/"));
+    server_exe.addObjectFile(b.path("third_party/enet/lib/libenet.a"));
     if (use_system_raylib) {
-        exe.linkSystemLibrary("raylib");
+        server_exe.linkSystemLibrary("raylib");
     } else {
-        exe.addIncludePath(b.path("third_party/raylib/include/"));
-        exe.addObjectFile(b.path("third_party/raylib/lib/libraylib.a"));
+        server_exe.addObjectFile(b.path("third_party/raylib/lib/libraylib.a"));
     }
+    b.installArtifact(server_exe);
 
-    b.installArtifact(exe);
-
-    const run_cmd = b.addRunArtifact(exe);
-    run_cmd.step.dependOn(b.getInstallStep());
+    const server_cmd = b.addRunArtifact(server_exe);
+    server_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
-        run_cmd.addArgs(args);
+        server_cmd.addArgs(args);
     }
 
-    const run_step = b.step("run", "Run the app");
-    run_step.dependOn(&run_cmd.step);
+    const server_run_step = b.step("run-server", "Run the app");
+    server_run_step.dependOn(&server_cmd.step);
+
+    const client_mod = b.createModule(.{
+        .root_source_file = b.path("src/game/main_client.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    client_mod.addImport("engine", engine_mod);
+    client_mod.addImport("game", game_mod);
+
+    const client_exe = b.addExecutable(.{
+        .name = "giggy-client",
+        .root_module = client_mod,
+    });
+    client_exe.linkLibC();
+
+    client_exe.addIncludePath(b.path("third_party/enet/include/"));
+    client_exe.addObjectFile(b.path("third_party/enet/lib/libenet.a"));
+
+    client_exe.addIncludePath(b.path("third_party/raylib/include/"));
+    if (use_system_raylib) {
+        client_exe.linkSystemLibrary("raylib");
+    } else {
+        client_exe.addObjectFile(b.path("third_party/raylib/lib/libraylib.a"));
+    }
+    b.installArtifact(client_exe);
+
+    const client_cmd = b.addRunArtifact(client_exe);
+    client_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        client_cmd.addArgs(args);
+    }
+
+    const client_run_step = b.step("run-client", "Run the app");
+    client_run_step.dependOn(&client_cmd.step);
 
     const examples_step = b.step("examples", "Build all examples");
     addExample(b, engine_mod, target, optimize, use_system_raylib, "blob", "src/examples/blob/main.zig", examples_step);
@@ -104,10 +136,10 @@ fn addExample(
     });
     exe.linkLibC();
 
+    exe.addIncludePath(b.path("third_party/raylib/include/"));
     if (use_system_raylib) {
         exe.linkSystemLibrary("raylib");
     } else {
-        exe.addIncludePath(b.path("third_party/raylib/include/"));
         exe.addObjectFile(b.path("third_party/raylib/lib/libraylib.a"));
     }
 

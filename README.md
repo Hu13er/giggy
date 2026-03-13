@@ -37,7 +37,8 @@ cp *.h $REPO/third_party/raylib/include/
 
 In order to build and run:
 ```bash
-zig build run
+zig build run-server
+zig build run-client
 ```
 
 Example targets:

@@ -11,7 +11,7 @@
 //
 // Note: Assumes CIDs are sorted
 
-const ProtocolWriter = struct {
+pub const ProtocolWriter = struct {
     entities: EntityList,
     archetypes: ArchetypeSet,
     gpa: mem.Allocator,
@@ -48,7 +48,7 @@ const ProtocolWriter = struct {
         try self.archetypes.put(archetype, {});
     }
 
-    pub fn flush(self: *Self, writer: Writer) !void {
+    pub fn flush(self: *Self, writer: *Writer) !void {
         if (self.archetypes.count() > std.math.maxInt(u8))
             return Error.TooManyArchetypes;
         if (self.entities.items.len > std.math.maxInt(u16))

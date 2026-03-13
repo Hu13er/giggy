@@ -1,11 +1,15 @@
 pub const ENetInitializer = struct {
-    ret_code: ?c_int,
+    ret_code: ?c_int = null,
 
     const Self = @This();
 
     pub fn init() !Self {
         const ret_code = enet.enet_initialize();
-        if (ret_code < 0) return ENetError.InitError;
+        if (ret_code < 0) {
+            std.debug.print("[!] ENet init Error: {d}\n", .{ret_code});
+            return ENetError.InitError;
+        }
+        std.debug.print("[!] ENet init successfully\n", .{});
         return .{ .ret_code = ret_code };
     }
 
@@ -13,6 +17,7 @@ pub const ENetInitializer = struct {
         if (self.ret_code == null) return;
         self.ret_code = null;
         enet.enet_deinitialize();
+        std.debug.print("[!] ENet deinit successfully\n", .{});
     }
 };
 
@@ -31,7 +36,7 @@ pub const HostManager = struct {
     pub fn init(gpa: mem.Allocator) !Self {
         return Self{
             .host = null,
-            .peers = try PeersSet.init(gpa),
+            .peers = PeersSet.init(gpa),
         };
     }
 
@@ -62,10 +67,10 @@ pub const HostManager = struct {
         if (peer == null) return ENetError.CreateHostError;
     }
 
-    pub fn poll(self: *Self, timeout: u32) ?enet.ENetEvent {
+    pub fn poll(self: *Self, timeout: u32) !?enet.ENetEvent {
         var event: enet.ENetEvent = undefined;
         const ret = enet.enet_host_service(
-            @ptrCast(self.host),
+            @ptrCast(self.host.?),
             @ptrCast(&event),
             timeout,
         );
@@ -94,7 +99,7 @@ pub const Address = struct {
     const Self = @This();
 
     pub fn setHostAny(self: *Self) void {
-        self.inner.host = enet.ENET_HOST_ANY;
+        self.inner.host = .{};
     }
 
     pub fn setHost(self: *Self, hostname: []const u8) !void {
@@ -110,14 +115,9 @@ pub const Address = struct {
     }
 };
 
-pub const ENetError = error{
-    InitError,
-    CreateHostError,
-    InvalidAddress,
-};
-
 const std = @import("std");
 const mem = std.mem;
 
 const engine = @import("engine");
 const enet = engine.net.enet;
+const ENetError = engine.net.ENetError;

@@ -2,13 +2,12 @@ pub const Plugin = struct {
     config: ?resources.HostManager.Config = null,
 
     pub fn build(self: @This(), app: *core.App) !void {
-        try app.insertResource(resources.ENetInitializer, .{});
-        if (self.config) |cfg| {
-            try app.insertResource(resources.HostManager, try .init(cfg));
-            try app.addSystem(.startup, systems.networkInit, .{
-                .provides = &.{"network.init"},
-            });
-        }
+        _ = self;
+        _ = try app.insertResource(resources.ENetInitializer, try .init());
+        _ = try app.insertResource(resources.HostManager, try .init(app.gpa));
+        try app.addSystem(.startup, systems.networkInitSystem, .{
+            .provides = &.{"network.init"},
+        });
     }
 };
 

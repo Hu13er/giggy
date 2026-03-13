@@ -459,6 +459,17 @@ pub const World = struct {
             }
         }
 
+        pub fn entry(self: *const QueryIterator) ArchetypeEntry {
+            assert(self.entity_iter != null);
+            assert(self.entity_iter.?.next_index > 0);
+            const row = self.entity_iter.?.next_index - 1;
+            const arch = self.entity_iter.?.archetype;
+            return .{
+                .archetype = arch,
+                .row = row,
+            };
+        }
+
         pub fn get(self: *const QueryIterator, comptime View: type) View {
             comptime util.assertView(View);
             const Of = View.Of;
