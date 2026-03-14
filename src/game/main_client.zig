@@ -10,12 +10,29 @@ pub fn main() !void {
     const hz = rl.GetMonitorRefreshRate(rl.GetCurrentMonitor());
     rl.SetTargetFPS(hz);
 
+    var comp_reg = try engine.ecs.ComponentRegistry.init(allocator);
+    // BUG: this causes panic: interger overflow.
+    // defer comp_reg.deinit();
+    const comps_count = try comp_reg.registerAllComponents(&[_]type{
+        game.components.animation,
+        game.components.collision,
+        game.components.enemy,
+        game.components.player,
+        game.components.render,
+        game.components.transform,
+        game.components.world,
+    });
+    std.debug.print("[!] Registered {d} components\n", .{comps_count});
+
     var app = try core.App.init(allocator);
     defer app.deinit();
 
     // engine plugins
     try app.addPlugin(AssetsPlugin, .{});
     try app.addPlugin(PrefabPlugin, .{});
+    try app.addPlugin(NetPlugin, .{
+        .component_registry = comp_reg,
+    });
 
     // game plugins
     try app.addPlugin(game_plugins.core.Plugin, .{
@@ -36,11 +53,17 @@ pub fn main() !void {
     });
     try app.addPlugin(game_plugins.level.Plugin, .{});
     try app.addPlugin(game_plugins.fade.Plugin, .{});
+    try app.addPlugin(game_plugins.net.Plugin, .{
+        .host_type = .client,
+    });
 
     // main loop
     while (!rl.WindowShouldClose()) {
         const frame_dt = rl.GetFrameTime();
-        try app.tick(frame_dt);
+        app.tick(frame_dt) catch |e| {
+            std.debug.print("got error: {t}", .{e});
+            return e;
+        };
     }
 }
 
@@ -50,6 +73,7 @@ const core = engine.core;
 const rl = engine.raylib;
 const AssetsPlugin = engine.assets.Plugin;
 const PrefabPlugin = engine.prefabs.Plugin;
+const NetPlugin = engine.net.Plugin;
 
 const game = @import("game");
 const game_plugins = game.plugins;

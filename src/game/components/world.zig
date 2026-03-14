@@ -27,3 +27,12 @@ pub const TeleportView = struct {
     room_id: *u32,
     spawn_id: *u8,
 };
+
+pub const TestComponent = struct {
+    x: u32,
+};
+
+pub const TestComponentView = struct {
+    pub const Of = TestComponent;
+    x: *u32,
+};

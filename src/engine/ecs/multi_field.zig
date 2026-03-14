@@ -29,6 +29,7 @@ pub const MultiField = struct {
             const l = @typeInfo(T).@"struct".fields.len;
             const fs = try gpa.alloc(Field.Meta, l);
             errdefer gpa.free(fs);
+            inline for (0..l) |i| fs[i] = Field.Meta.fromStruct(T, i).*;
             return .{ .cid = cid, .fields = fs };
         }
 
@@ -159,9 +160,11 @@ pub const MultiField = struct {
     }
 
     pub fn appendUndefined(self: *Self, gpa: mem.Allocator) !void {
-        const expected_len = self.meta.size;
+        const expected_len = self.meta.size();
         const before_size = self.len();
         errdefer self.setSize(before_size);
+
+        self.length += 1;
 
         var idx: usize = 0;
         for (self.fields) |*f| {

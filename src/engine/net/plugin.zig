@@ -2,7 +2,9 @@ pub const Plugin = struct {
     component_registry: engine.ecs.ComponentRegistry,
 
     pub fn build(self: @This(), app: *core.App) !void {
-        _ = try app.insertResource(engine.ecs.ComponentRegistry, self.component_registry);
+        var comp_reg = try app.insertResource(engine.ecs.ComponentRegistry, self.component_registry);
+        try comp_reg.register(engine.net.Sync);
+
         _ = try app.insertResource(resources.ENetInitializer, try .init());
         _ = try app.insertResource(resources.HostManager, try .init(app.gpa));
         try app.addSystem(.startup, systems.networkInitSystem, .{

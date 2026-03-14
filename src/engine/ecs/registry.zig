@@ -27,6 +27,7 @@ pub const ComponentRegistry = struct {
         var meta: MultiField.Meta = try .init(C, self.gpa);
         errdefer meta.deinit(self.gpa);
         try self.components.putNoClobber(cid, meta);
+        std.debug.print("[!] Registered {s}: {d}\n", .{ @typeName(C), cid });
     }
 
     pub fn registerAllComponents(self: *Self, comptime Ts: []const type) !usize {

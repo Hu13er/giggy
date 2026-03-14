@@ -68,6 +68,8 @@ pub const ProtocolWriter = struct {
                 if (a == e.archetype) break i;
             } else unreachable;
             try writer.writeInt(u8, @intCast(idx), .little);
+            const entity = e.archetype.entities.items[e.row];
+            try writer.writeInt(u32, entity, .little);
             try writeArchetypeRow(writer, e.archetype, e.row);
         }
 
@@ -112,55 +114,54 @@ pub const ProtocolReader = struct {
         _ = self;
     }
 
-    pub fn store(self: *Self, world: *ecs.World, reader: Reader) !void {
-        const n_arch = reader.takeInt(u8, .little);
-        const arch_metas_buffer: [std.math.maxInt(u8)]ecs.Archetype.StaticMeta = undefined;
-        var arch_metas = std.ArrayList(ecs.Archetype.StaticMeta).initBuffer(arch_metas_buffer);
+    pub fn store(self: *Self, world: *ecs.World, reader: *Reader) !void {
+        const n_arch = try reader.takeInt(u8, .little);
+        var arch_metas_buffer: [std.math.maxInt(u8)]ecs.Archetype.StaticMeta = undefined;
+        var arch_metas = std.ArrayList(ecs.Archetype.StaticMeta).initBuffer(arch_metas_buffer[0..]);
         for (0..n_arch) |_| {
-            const m_cids = reader.takeInt(u8, .little);
+            const m_cids = try reader.takeInt(u8, .little);
 
-            const comps_buffer: [std.math.maxInt(u8)]*const ecs.MultiField.Meta = undefined;
-            var comps = std.ArrayList(*const ecs.MultiField.Meta).initBuffer(comps_buffer);
+            var comps_buffer: [std.math.maxInt(u8)]*const ecs.MultiField.Meta = undefined;
+            var comps = std.ArrayList(*const ecs.MultiField.Meta).initBuffer(comps_buffer[0..]);
             for (0..m_cids) |_| {
-                const cid = reader.takeInt(u32, .little);
+                const cid = try reader.takeInt(u32, .little);
                 const meta = self.registry.getByCidOrNull(cid) orelse return Error.UnknownComponent;
+
                 comps.appendAssumeCapacity(meta);
             }
 
-            const meta =
-                ecs.Archetype.OwnedMeta
-                    .init(comps.items)
-                    .view();
-            arch_metas.appendAssumeCapacity(meta);
+            const meta = try ecs.Archetype.OwnedMeta.init(comps.items);
+            arch_metas.appendAssumeCapacity(meta.view());
         }
 
-        const k_entities = reader.takeInt(u16, .little);
+        const k_entities = try reader.takeInt(u16, .little);
         for (0..k_entities) |_| {
-            const idx = reader.takeInt(u8, .little);
-            const e = reader.takeInt(u32, .little);
+            const idx = try reader.takeInt(u8, .little);
+            const e = try reader.takeInt(u32, .little);
             _ = world.despawn(e);
 
             // TODO: we are abusing StaticMeta here.
             // it already works since world.spawn* copies memory.
             // but StaticMeta suggests that it has static lifetime
-            const entry = try world.spawnUndefined(e, &arch_metas[idx]);
+
+            const entry = try world.spawnUndefined(e, &arch_metas.items[idx]);
             try readArchetypeRow(reader, entry.archetype, entry.row);
         }
     }
 
-    fn readArchetypeRow(reader: anytype, archetype: *ecs.Archetype, row: usize) !void {
+    fn readArchetypeRow(reader: *Reader, archetype: *ecs.Archetype, row: usize) !void {
         var it = archetype.rowIter(row);
         while (it.next()) |field| {
             try readField(reader, field.field_meta, field.bytes);
         }
     }
 
-    fn readField(reader: anytype, meta: *const ecs.Field.Meta, bytes: []u8) !void {
+    fn readField(reader: *Reader, meta: *const ecs.Field.Meta, bytes: []u8) !void {
         if (!meta.type.isWireScalar()) return error.UnsupportedFieldType;
         switch (meta.type.tag) {
             .bool => {
                 if (bytes.len != 1) return error.UnsupportedBitSize;
-                const b = try reader.readByte();
+                const b = try reader.takeByte();
                 if (b > 1) return error.InvalidBool;
                 bytes[0] = b;
             },
@@ -172,7 +173,7 @@ pub const ProtocolReader = struct {
     }
 };
 
-fn writeInt(writer: anytype, signed: bool, size: usize, bytes: []const u8) !void {
+fn writeInt(writer: *Writer, signed: bool, size: usize, bytes: []const u8) !void {
     switch (size) {
         1 => if (signed) {
             const v = std.mem.bytesAsValue(i8, bytes).*;
@@ -206,41 +207,41 @@ fn writeInt(writer: anytype, signed: bool, size: usize, bytes: []const u8) !void
     }
 }
 
-fn readInt(reader: anytype, signed: bool, size: usize, bytes: []u8) !void {
+fn readInt(reader: *Reader, signed: bool, size: usize, bytes: []u8) !void {
     switch (size) {
         1 => if (signed) {
-            const v = try reader.readInt(i8, .little);
+            const v = try reader.takeInt(i8, .little);
             @memcpy(bytes, std.mem.asBytes(&v));
         } else {
-            const v = try reader.readInt(u8, .little);
+            const v = try reader.takeInt(u8, .little);
             bytes[0] = v;
         },
         2 => if (signed) {
-            const v = try reader.readInt(i16, .little);
+            const v = try reader.takeInt(i16, .little);
             @memcpy(bytes, std.mem.asBytes(&v));
         } else {
-            const v = try reader.readInt(u16, .little);
+            const v = try reader.takeInt(u16, .little);
             @memcpy(bytes, std.mem.asBytes(&v));
         },
         4 => if (signed) {
-            const v = try reader.readInt(i32, .little);
+            const v = try reader.takeInt(i32, .little);
             @memcpy(bytes, std.mem.asBytes(&v));
         } else {
-            const v = try reader.readInt(u32, .little);
+            const v = try reader.takeInt(u32, .little);
             @memcpy(bytes, std.mem.asBytes(&v));
         },
         8 => if (signed) {
-            const v = try reader.readInt(i64, .little);
+            const v = try reader.takeInt(i64, .little);
             @memcpy(bytes, std.mem.asBytes(&v));
         } else {
-            const v = try reader.readInt(u64, .little);
+            const v = try reader.takeInt(u64, .little);
             @memcpy(bytes, std.mem.asBytes(&v));
         },
         else => return error.UnsupportedBitSize,
     }
 }
 
-fn writeFloat(writer: anytype, size: usize, bytes: []const u8) !void {
+fn writeFloat(writer: *Writer, size: usize, bytes: []const u8) !void {
     switch (size) {
         2 => {
             const v = std.mem.bytesAsValue(f16, bytes).*;
@@ -261,20 +262,20 @@ fn writeFloat(writer: anytype, size: usize, bytes: []const u8) !void {
     }
 }
 
-fn readFloat(reader: anytype, size: usize, bytes: []u8) !void {
+fn readFloat(reader: *Reader, size: usize, bytes: []u8) !void {
     switch (size) {
         2 => {
-            const bits = try reader.readInt(u16, .little);
+            const bits = try reader.takeInt(u16, .little);
             const v: f16 = @bitCast(bits);
             @memcpy(bytes, std.mem.asBytes(&v));
         },
         4 => {
-            const bits = try reader.readInt(u32, .little);
+            const bits = try reader.takeInt(u32, .little);
             const v: f32 = @bitCast(bits);
             @memcpy(bytes, std.mem.asBytes(&v));
         },
         8 => {
-            const bits = try reader.readInt(u64, .little);
+            const bits = try reader.takeInt(u64, .little);
             const v: f64 = @bitCast(bits);
             @memcpy(bytes, std.mem.asBytes(&v));
         },

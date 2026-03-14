@@ -40,13 +40,13 @@ pub fn serverLoopSystem(app: *core.App) !void {
             enet.ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT,
         );
         const err = enet.enet_peer_send(p.*, 0, pkt);
-        if (err < 0) return net.ENetError.ENetPeerSend;
+        if (err < 0)
+            return net.ENetError.ENetPeerSend;
     }
 
     while (try host_mgr.poll(5)) |event| {
         switch (event.type) {
             enet.ENET_EVENT_TYPE_RECEIVE => {
-                std.debug.print("[*] Got packet: {d}", .{event.packet.*.dataLength});
                 enet.enet_packet_destroy(event.packet);
             },
             else => {},
@@ -54,11 +54,30 @@ pub fn serverLoopSystem(app: *core.App) !void {
     }
 }
 
+pub fn serverTestInitSystem(app: *core.App) !void {
+    _ = try app.world.spawn(.{
+        components.world.TestComponent{ .x = 0 },
+        engine.net.Sync{},
+    });
+}
+
+pub fn serverTestSystem(app: *core.App) !void {
+    var it = app.world.query(&[_]type{components.world.TestComponent});
+    while (it.next()) |_| {
+        const x = it.getAuto(components.world.TestComponent).x;
+        x.* += 1;
+    }
+}
+
 pub fn clientInitSystem(app: *core.App) !void {
     var host_mgr = app.getResource(net.resources.HostManager).?;
+    try host_mgr.bind(.{
+        .address = null,
+        .max_peers = 1,
+    });
     try host_mgr.connect(blk: {
         var addr: net.resources.Address = .{};
-        addr.setHost("127.0.0.1");
+        try addr.setHost("127.0.0.1");
         addr.setPort(6969);
         break :blk addr;
     });
@@ -77,7 +96,6 @@ pub fn clientLoopSystem(app: *core.App) !void {
         switch (event.type) {
             enet.ENET_EVENT_TYPE_RECEIVE => {
                 defer enet.enet_packet_destroy(event.packet);
-                std.debug.print("[*] Got packet: {d}", .{event.packet.*.dataLength});
 
                 const buffer = blk: {
                     const pkt = event.packet.*;
@@ -87,10 +105,19 @@ pub fn clientLoopSystem(app: *core.App) !void {
                 var pr = net.wire.ProtocolReader.init(comp_reg);
                 defer pr.deinit();
 
-                try pr.store(app.world, &r);
+                try pr.store(&app.world, &r);
             },
             else => {},
         }
+    }
+}
+
+pub fn clientTestSystem(app: *core.App) !void {
+    const debug = app.getResource(game.plugins.debug.resources.DebugState).?;
+    var it = app.world.query(&[_]type{components.world.TestComponent});
+    while (it.next()) |_| {
+        const x = it.getAuto(components.world.TestComponent).x;
+        try debug.setFmt("test_value", "{d}", .{x.*});
     }
 }
 

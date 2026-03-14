@@ -9,10 +9,14 @@ pub const Plugin = struct {
     pub fn build(self: @This(), app: *core.App) !void {
         switch (self.host_type) {
             .client => {
-                // try app.addSystem(.fixed_update, systems.clientLoopSystem, .{
-                //     .provides = &.{"network.tick"},
-                //     .after_all_labels = &.{"input"},
-                // });
+                try app.addSystem(.startup, systems.clientInitSystem, .{
+                    .provides = &.{"network.init"},
+                });
+                try app.addSystem(.fixed_update, systems.clientLoopSystem, .{
+                    .provides = &.{"network.tick"},
+                    .after_all_labels = &.{"input"},
+                });
+                try app.addSystem(.fixed_update, systems.clientTestSystem, .{});
             },
             .server => {
                 try app.addSystem(.startup, systems.serverInitSystem, .{
@@ -20,7 +24,10 @@ pub const Plugin = struct {
                 });
                 try app.addSystem(.fixed_update, systems.serverLoopSystem, .{
                     .provides = &.{"network.tick"},
+                    .after_all_labels = &.{"network.init"},
                 });
+                try app.addSystem(.startup, systems.serverTestInitSystem, .{});
+                try app.addSystem(.fixed_update, systems.serverTestSystem, .{});
             },
         }
     }

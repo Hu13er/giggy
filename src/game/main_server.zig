@@ -8,7 +8,8 @@ pub fn main() !void {
 
     // setup
     var comp_reg = try engine.ecs.ComponentRegistry.init(allocator);
-    defer comp_reg.deinit();
+    // BUG: this causes panic: interger overflow.
+    // defer comp_reg.deinit();
     const comps_count = try comp_reg.registerAllComponents(&[_]type{
         game.components.animation,
         game.components.collision,

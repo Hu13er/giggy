@@ -29,7 +29,7 @@ pub const HostManager = struct {
     const PeersSet = std.AutoHashMap(*enet.ENetPeer, void);
 
     pub const Config = struct {
-        address: Address,
+        address: ?Address,
         max_peers: usize,
     };
 
@@ -46,8 +46,9 @@ pub const HostManager = struct {
     }
 
     pub fn bind(self: *Self, cfg: Config) !void {
+        const addr: [*c]const enet.ENetAddress = if (cfg.address) |a| @ptrCast(&a.inner) else null;
         const server = enet.enet_host_create(
-            @ptrCast(&cfg.address.inner),
+            addr,
             cfg.max_peers,
             2, // channels
             0, // downstream bandwith (0 = unlimited)
@@ -59,7 +60,7 @@ pub const HostManager = struct {
 
     pub fn connect(self: *Self, addr: Address) !void {
         const peer = enet.enet_host_connect(
-            @ptrCast(self.host),
+            @ptrCast(self.host.?),
             @ptrCast(&addr.inner),
             2,
             0,
@@ -104,7 +105,7 @@ pub const Address = struct {
 
     pub fn setHost(self: *Self, hostname: []const u8) !void {
         const err = enet.enet_address_set_host(
-            self.ptr(),
+            @ptrCast(&self.inner),
             @ptrCast(hostname),
         );
         if (err != 0) return ENetError.InvalidAddress;

@@ -66,7 +66,7 @@ pub const Scheduler = struct {
         self.dirty = true;
     }
 
-    pub fn runStep(self: *Self, step: Step, app: *App) !void {
+    pub fn runStep(self: *Self, step: Step, app: *App) anyerror!void {
         if (self.dirty) {
             try self.finalize();
         }
@@ -85,7 +85,7 @@ pub const Scheduler = struct {
         self.fixed_dt = fixed_dt;
     }
 
-    pub fn tick(self: *Self, app: *App, dt: f32) !void {
+    pub fn tick(self: *Self, app: *App, dt: f32) anyerror!void {
         if (self.dirty) {
             try self.finalize();
         }
