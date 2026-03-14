@@ -11,7 +11,6 @@ pub const ComponentRegistry = struct {
         return .{
             .components = .init(gpa),
             .gpa = gpa,
-            .locked = false,
         };
     }
 
@@ -25,23 +24,26 @@ pub const ComponentRegistry = struct {
         comptime util.assertComponent(C);
         const cid = util.cidOf(C);
         if (self.components.contains(cid)) return Error.CidAlreadyExists;
-        const meta: MultiField.Meta = .init(C, self.gpa);
+        var meta: MultiField.Meta = try .init(C, self.gpa);
         errdefer meta.deinit(self.gpa);
         try self.components.putNoClobber(cid, meta);
     }
 
-    pub fn registerAllComponents(self: *Self, comptime Ts: []const type) void {
+    pub fn registerAllComponents(self: *Self, comptime Ts: []const type) !usize {
+        var count: usize = 0;
         inline for (Ts) |T| {
             inline for (comptime std.meta.declarations(T)) |decl| {
                 const C = blk: {
-                    const MaybeComponent = @TypeOf(@field(T, decl.name));
-                    if (util.isView(MaybeComponent)) continue;
-                    if (!util.isComponent(MaybeComponent)) continue;
+                    const MaybeComponent = @field(T, decl.name);
+                    if (comptime util.isView(MaybeComponent)) continue;
+                    if (comptime !util.isComponent(MaybeComponent)) continue;
                     break :blk MaybeComponent;
                 };
-                self.register(C);
+                try self.register(C);
+                count += 1;
             }
         }
+        return count;
     }
 
     pub fn get(self: *const Self, comptime T: type) *const MultiField.Meta {

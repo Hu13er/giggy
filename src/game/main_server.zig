@@ -1,24 +1,35 @@
 const screenWidth: u32 = 800;
 const screenHeight: u32 = 600;
 const hz = 30;
+const first_entity = std.math.maxInt(engine.ecs.Entity) / 2;
 
 pub fn main() !void {
     const allocator = std.heap.c_allocator;
 
+    // setup
+    var comp_reg = try engine.ecs.ComponentRegistry.init(allocator);
+    defer comp_reg.deinit();
+    const comps_count = try comp_reg.registerAllComponents(&[_]type{
+        game.components.animation,
+        game.components.collision,
+        game.components.enemy,
+        game.components.player,
+        game.components.render,
+        game.components.transform,
+        game.components.world,
+    });
+    std.debug.print("[!] Registered {d} components\n", .{comps_count});
+
     var app = try core.App.init(allocator);
     defer app.deinit();
+    app.world.next_entity = first_entity;
 
+    // engine plugins
     try app.addPlugin(net.Plugin, .{
-        .config = .{
-            .address = blk: {
-                var addr: net.resources.Address = .{};
-                addr.setHostAny();
-                addr.setPort(6464);
-                break :blk addr;
-            },
-            .max_peers = 8,
-        },
+        .component_registry = comp_reg,
     });
+
+    // game plugins
     try app.addPlugin(game_plugins.core.Plugin, .{
         .width = screenWidth,
         .height = screenHeight,
@@ -28,6 +39,7 @@ pub fn main() !void {
         .host_type = .server,
     });
 
+    // main loop
     var timer = try time.Timer.start();
     while (true) {
         const since_last = timer.lap();

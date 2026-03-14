@@ -1,3 +1,23 @@
+pub const RawPosition = struct {
+    x: f32,
+    y: f32,
+};
+
+pub const RawPositionView = struct {
+    pub const Of = RawPosition;
+    x: *f32,
+    y: *f32,
+};
+
+pub const RawRotation = struct {
+    target_teta: f32,
+};
+
+pub const RawRotationView = struct {
+    pub const Of = RawRotation;
+    target_teta: *f32,
+};
+
 pub const Position = struct {
     x: f32,
     y: f32,

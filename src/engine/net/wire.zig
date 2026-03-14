@@ -98,11 +98,11 @@ pub const ProtocolWriter = struct {
 };
 
 pub const ProtocolReader = struct {
-    registry: ecs.registry.ComponentRegistry,
+    registry: *const ecs.registry.ComponentRegistry,
 
     const Self = @This();
 
-    pub fn init(registry: ecs.registry.ComponentRegistry) Self {
+    pub fn init(registry: *const ecs.registry.ComponentRegistry) Self {
         return .{
             .registry = registry,
         };

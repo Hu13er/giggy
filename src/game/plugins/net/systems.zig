@@ -32,6 +32,7 @@ pub fn serverLoopSystem(app: *core.App) !void {
         var w = io.Writer.fixed(buffer[0..]);
         try pw.flush(&w);
         const data = w.buffered();
+        if (data.len == 0) continue;
 
         const pkt = enet.enet_packet_create(
             @ptrCast(data.ptr),
@@ -54,26 +55,39 @@ pub fn serverLoopSystem(app: *core.App) !void {
 }
 
 pub fn clientInitSystem(app: *core.App) !void {
-    // TODO
-    //
-
-    _ = app;
+    var host_mgr = app.getResource(net.resources.HostManager).?;
+    try host_mgr.connect(blk: {
+        var addr: net.resources.Address = .{};
+        addr.setHost("127.0.0.1");
+        addr.setPort(6969);
+        break :blk addr;
+    });
+    std.debug.print("[!] ENet connected", .{});
 }
 
 pub fn clientLoopSystem(app: *core.App) !void {
-    // TODO
-    //
-
     const host_mgr = app.getResource(net.resources.HostManager).?;
+    const comp_reg = app.getResource(engine.ecs.ComponentRegistry).?;
 
+    // TODO
     // const peer = host_mgr.firstPeer() orelse return;
     // const input_resc = app.getResource(plugins.input.resources.PlayerInput).?;
 
     while (try host_mgr.poll(5)) |event| {
         switch (event.type) {
             enet.ENET_EVENT_TYPE_RECEIVE => {
+                defer enet.enet_packet_destroy(event.packet);
                 std.debug.print("[*] Got packet: {d}", .{event.packet.*.dataLength});
-                enet.enet_packet_destroy(event.packet);
+
+                const buffer = blk: {
+                    const pkt = event.packet.*;
+                    break :blk pkt.data[0..pkt.dataLength];
+                };
+                var r = io.Reader.fixed(buffer);
+                var pr = net.wire.ProtocolReader.init(comp_reg);
+                defer pr.deinit();
+
+                try pr.store(app.world, &r);
             },
             else => {},
         }
