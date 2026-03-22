@@ -1,7 +1,7 @@
 pub const Plugin = struct {
     width: u32,
     height: u32,
-    fixed_dt: f32 = 1.0 / 60.0,
+    fixed_dt: f32,
 
     pub fn build(self: @This(), app: *core.App) !void {
         const time = app.getResource(core.Time).?;

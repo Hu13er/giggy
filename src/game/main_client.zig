@@ -1,5 +1,6 @@
 const screenWidth: u32 = 800;
 const screenHeight: u32 = 600;
+const hz = 30;
 
 pub fn main() !void {
     const allocator = std.heap.c_allocator;
@@ -7,8 +8,8 @@ pub fn main() !void {
     // setup
     rl.InitWindow(screenWidth, screenHeight, "Giggy: Echoes of the Hollow");
     defer rl.CloseWindow();
-    const hz = rl.GetMonitorRefreshRate(rl.GetCurrentMonitor());
-    rl.SetTargetFPS(hz);
+    const render_hz = rl.GetMonitorRefreshRate(rl.GetCurrentMonitor());
+    rl.SetTargetFPS(render_hz);
 
     var comp_reg = try engine.ecs.ComponentRegistry.init(allocator);
     // BUG: this causes panic: interger overflow.
@@ -38,7 +39,7 @@ pub fn main() !void {
     try app.addPlugin(game_plugins.core.Plugin, .{
         .width = screenWidth,
         .height = screenHeight,
-        .fixed_dt = 1.0 / 60.0,
+        .fixed_dt = 1.0 / @as(f32, hz),
     });
     try app.addPlugin(game_plugins.debug.Plugin, .{});
     try app.addPlugin(game_plugins.assets.Plugin, .{});

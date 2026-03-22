@@ -6,7 +6,6 @@ pub const Plugin = struct {
         try comp_reg.register(engine.net.Sync);
 
         _ = try app.insertResource(resources.ENetInitializer, try .init());
-        _ = try app.insertResource(resources.HostManager, try .init(app.gpa));
         try app.addSystem(.startup, systems.networkInitSystem, .{
             .provides = &.{"network.init"},
         });

@@ -7,6 +7,7 @@ pub const Plugin = struct {
     };
 
     pub fn build(self: @This(), app: *core.App) !void {
+        _ = try app.insertResource(resources.HostManager, try .init(app.gpa));
         switch (self.host_type) {
             .client => {
                 try app.addSystem(.startup, systems.clientInitSystem, .{

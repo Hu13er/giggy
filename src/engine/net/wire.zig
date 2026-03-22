@@ -134,10 +134,21 @@ pub const ProtocolReader = struct {
             arch_metas.appendAssumeCapacity(meta.view());
         }
 
+        // TODO: The following is not recommended or efficient.
+        // world.dropArchetypeEntities must be used but since it required
+        // defining iterators for archetypes, we skipped it for now.
+        // Note: be careful to write a clean iterator.
+        var it = world.query(&[_]type{engine.net.Sync});
+        while(it.next()) |e| {
+            _ = world.despawn(e);
+        }
+
         const k_entities = try reader.takeInt(u16, .little);
         for (0..k_entities) |_| {
             const idx = try reader.takeInt(u8, .little);
             const e = try reader.takeInt(u32, .little);
+            // The following line is technically redundant because of the
+            // upper world.despawn() but we keep it anyways for safety.
             _ = world.despawn(e);
 
             // TODO: we are abusing StaticMeta here.
@@ -172,6 +183,10 @@ pub const ProtocolReader = struct {
         }
     }
 };
+
+// pub fn writeInput(writer: *Writer, input_values: ) !void {
+
+// }
 
 fn writeInt(writer: *Writer, signed: bool, size: usize, bytes: []const u8) !void {
     switch (size) {

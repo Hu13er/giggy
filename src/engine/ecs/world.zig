@@ -432,6 +432,14 @@ pub const World = struct {
         };
     }
 
+    pub fn dropArchetypeEntities(self: *Self, arch: *Archetype) void {
+        for (arch.entities.items) |e| {
+            const removed = self.entity_archetype.swapRemove(e);
+            assert(removed);
+        }
+        arch.clearRetainingCapacity();
+    }
+
     pub const QueryIterator = struct {
         cids: []const u32, // TODO: cids are runtime and dynamic: consider compile time cids
         arch_iter: ArchetypeHashMap.ValueIterator,

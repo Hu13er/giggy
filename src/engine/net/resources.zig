@@ -21,78 +21,85 @@ pub const ENetInitializer = struct {
     }
 };
 
-pub const HostManager = struct {
-    host: ?*enet.ENetHost,
-    peers: PeersSet,
+pub fn HostManager(comptime T: type) type {
+    return struct {
+        host: ?*enet.ENetHost,
+        peers: PeerMap,
 
-    const Self = @This();
-    const PeersSet = std.AutoHashMap(*enet.ENetPeer, void);
+        const Self = @This();
+        const PeerMap = std.AutoHashMap(*enet.ENetPeer, T);
 
-    pub const Config = struct {
-        address: ?Address,
-        max_peers: usize,
-    };
-
-    pub fn init(gpa: mem.Allocator) !Self {
-        return Self{
-            .host = null,
-            .peers = PeersSet.init(gpa),
+        pub const Config = struct {
+            address: ?Address,
+            max_peers: usize,
         };
-    }
 
-    pub fn deinit(self: *Self) void {
-        self.peers.deinit();
-        enet.enet_host_destroy(@ptrCast(self.host));
-    }
-
-    pub fn bind(self: *Self, cfg: Config) !void {
-        const addr: [*c]const enet.ENetAddress = if (cfg.address) |a| @ptrCast(&a.inner) else null;
-        const server = enet.enet_host_create(
-            addr,
-            cfg.max_peers,
-            2, // channels
-            0, // downstream bandwith (0 = unlimited)
-            0, // upstream bandwith (0 = unlimited)
-        );
-        if (server == null) return ENetError.CreateHostError;
-        self.host = @ptrCast(server);
-    }
-
-    pub fn connect(self: *Self, addr: Address) !void {
-        const peer = enet.enet_host_connect(
-            @ptrCast(self.host.?),
-            @ptrCast(&addr.inner),
-            2,
-            0,
-        );
-        if (peer == null) return ENetError.CreateHostError;
-    }
-
-    pub fn poll(self: *Self, timeout: u32) !?enet.ENetEvent {
-        var event: enet.ENetEvent = undefined;
-        const ret = enet.enet_host_service(
-            @ptrCast(self.host.?),
-            @ptrCast(&event),
-            timeout,
-        );
-        if (ret <= 0) return null;
-        switch (event.type) {
-            enet.ENET_EVENT_TYPE_CONNECT => {
-                try self.peers.put(event.peer, {});
-            },
-            enet.ENET_EVENT_TYPE_DISCONNECT => {
-                _ = self.peers.remove(event.peer);
-            },
-            else => {},
+        pub fn init(gpa: mem.Allocator) !Self {
+            return Self{
+                .host = null,
+                .peers = PeerMap.init(gpa),
+            };
         }
-        return event;
-    }
 
-    pub fn firstPeer(self: *const Self) ?*enet.ENetPeer {
-        var iter = self.peers.keyIterator();
-        return iter.next();
-    }
-};
+        pub fn deinit(self: *Self) void {
+            if (@hasDecl(T, "deinit")) {
+                var it = self.peers.valueIterator();
+                while (it.next()) |peer_info| peer_info.deinit();
+            }
+            self.peers.deinit();
+            enet.enet_host_destroy(@ptrCast(self.host));
+        }
+
+        pub fn bind(self: *Self, cfg: Config) !void {
+            const addr: [*c]const enet.ENetAddress = if (cfg.address) |a| @ptrCast(&a.inner) else null;
+            const server = enet.enet_host_create(
+                addr,
+                cfg.max_peers,
+                2, // channels
+                0, // downstream bandwith (0 = unlimited)
+                0, // upstream bandwith (0 = unlimited)
+            );
+            if (server == null) return ENetError.CreateHostError;
+            self.host = @ptrCast(server);
+        }
+
+        pub fn connect(self: *Self, addr: Address) !void {
+            const peer = enet.enet_host_connect(
+                @ptrCast(self.host.?),
+                @ptrCast(&addr.inner),
+                2,
+                0,
+            );
+            if (peer == null) return ENetError.CreateHostError;
+        }
+
+        pub fn poll(self: *Self, timeout: u32) !?enet.ENetEvent {
+            var event: enet.ENetEvent = undefined;
+            const ret = enet.enet_host_service(
+                @ptrCast(self.host.?),
+                @ptrCast(&event),
+                timeout,
+            );
+            if (ret <= 0) return null;
+            switch (event.type) {
+                enet.ENET_EVENT_TYPE_CONNECT => {
+                    const v: T = .{};
+                    try self.peers.put(event.peer, v);
+                },
+                enet.ENET_EVENT_TYPE_DISCONNECT => {
+                    _ = self.peers.remove(event.peer);
+                },
+                else => {},
+            }
+            return event;
+        }
+
+        pub fn firstPeer(self: *const Self) ?*enet.ENetPeer {
+            var iter = self.peers.keyIterator();
+            return if (iter.next()) |p| p.* else null;
+        }
+    };
+}
 
 pub const Address = struct {
     inner: enet.ENetAddress = .{},

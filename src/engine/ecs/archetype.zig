@@ -633,6 +633,12 @@ pub const Archetype = struct {
             if (comp.cid == cid) break idx;
         } else null;
     }
+
+    pub fn clearRetainingCapacity(self: *Self) void {
+        self.entities.clearRetainingCapacity();
+        self.entities_index.clearRetainingCapacity();
+        self.entities_version.clearRetainingCapacity();
+    }
 };
 
 pub fn Mutator(comptime View: type) type {
