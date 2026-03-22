@@ -1,3 +1,10 @@
+/// ye kar:
+/// 1. write a client_player component that handles player rendering on client side
+/// 2. write a "spawn" component
+/// 3. write a system using which the client syncs its own player entities via
+///    server's incoming player data.
+/// 4. This current plugin will have an additional system that'll be invoked
+///    only when the plugin is run on client side.
 pub const Plugin = struct {
     pub fn build(self: @This(), app: *core.App) !void {
         _ = self;
@@ -15,17 +22,20 @@ pub const Plugin = struct {
         defer loco_animset.deinit();
 
         const player_entity = try app.world.spawn(.{
+            // logic / server
             components.player.Player{ .id = 1, .just_spawned = true, .spawn_id = 0 },
             components.transform.Position{ .x = 70, .y = 70, .prev_x = 70, .prev_y = 70 },
             components.transform.Velocity{ .x = 0, .y = 0 },
             components.collision.ColliderCircle{ .radius = 16.0, .mask = 1 },
             components.transform.Rotation{ .teta = 0, .prev_teta = 0, .target_teta = 0, .turn_speed_deg = 360.0 * 3 },
+            level_resources.roomFromName("level1"),
+
+            // render / client
             components.render.Model3D{ .name = "greenman", .render_texture = 0, .mesh = 0, .material = 1 },
             components.render.RenderInto{ .into = "player" },
             components.animation.Animation{ .index = 0, .frame = 0, .acc = 0, .speed = 0 },
             loco_animset.value,
             components.animation.LocomotionAnimState{ .moving = false },
-            level_resources.roomFromName("level1"),
         });
         _ = try app.insertResource(resources.Player, .{ .entity = player_entity });
 

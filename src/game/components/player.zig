@@ -11,3 +11,12 @@ pub const PlayerView = struct {
     just_spawned: *bool,
     spawn_id: *u8,
 };
+
+pub const ClientPlayer = struct {
+    id: u8,
+};
+
+pub const ClientPlayerView = struct {
+    pub const Of = ClientPlayer;
+    id: *u8,
+};

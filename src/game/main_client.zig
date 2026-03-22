@@ -37,6 +37,7 @@ pub fn main() !void {
 
     // game plugins
     try app.addPlugin(game_plugins.core.Plugin, .{
+        .is_server = false,
         .width = screenWidth,
         .height = screenHeight,
         .fixed_dt = 1.0 / @as(f32, hz),

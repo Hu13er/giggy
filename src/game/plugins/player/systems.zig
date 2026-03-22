@@ -1,5 +1,7 @@
 const PLAYER_SPEED: f32 = 250;
 
+/// name: playerInputSystem
+/// side: server
 pub fn playerInputSystem(app: *core.App) !void {
     const input_resc = app.getResource(game.plugins.input.resources.PlayerInput).?;
 

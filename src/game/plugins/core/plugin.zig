@@ -2,6 +2,7 @@ pub const Plugin = struct {
     width: u32,
     height: u32,
     fixed_dt: f32,
+    is_server: bool,
 
     pub fn build(self: @This(), app: *core.App) !void {
         const time = app.getResource(core.Time).?;
@@ -9,6 +10,8 @@ pub const Plugin = struct {
         time.fixed_dt = self.fixed_dt;
         time.alpha = 0;
         app.setFixedDelta(self.fixed_dt);
+
+        _ = try app.insertResource(resources.IsServer, self.is_server);
 
         _ = try app.insertResource(resources.Screen, .{
             .width = self.width,

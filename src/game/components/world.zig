@@ -7,6 +7,15 @@ pub const SpawnPointView = struct {
     id: *u8,
 };
 
+pub const RoomTransition = struct {
+    alpha: f32,
+};
+
+pub const RoomTransitionView = struct {
+    pub const Of = RoomTransition;
+    alpha: *f32,
+};
+
 pub const Room = struct {
     id: u32,
 };

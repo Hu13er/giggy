@@ -32,6 +32,7 @@ pub fn main() !void {
 
     // game plugins
     try app.addPlugin(game_plugins.core.Plugin, .{
+        .is_server = true,
         .width = screenWidth,
         .height = screenHeight,
         .fixed_dt = 1.0 / @as(f32, @floatFromInt(hz)),
@@ -39,6 +40,9 @@ pub fn main() !void {
     try app.addPlugin(game_plugins.net.Plugin, .{
         .host_type = .server,
     });
+    try app.addPlugin(game_plugins.level.Plugin, .{});
+    try app.addPlugin(game_plugins.physics.Plugin, .{});
+    try app.addPlugin(game_plugins.player.Plugin, .{});
 
     // main loop
     var timer = try time.Timer.start();
