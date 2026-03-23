@@ -2,6 +2,7 @@ const PLAYER_SPEED: f32 = 250;
 
 /// name: playerInputSystem
 /// side: server
+/// semi-DEPRECATED
 pub fn playerInputSystem(app: *core.App) !void {
     const input_resc = app.getResource(game.plugins.input.resources.PlayerInput).?;
 
@@ -85,6 +86,109 @@ pub fn playerSpawnSystem(app: *core.App) !void {
         player_view.spawn_id.* = 0;
     }
 }
+
+pub fn playerSyncSystem(app: *core.App) !void {
+    const sync_resc = app.getResource(game.plugins.player.resources.SyncMap).?;
+    const assets_mgr = app.getResource(engine.assets.AssetManager).?;
+
+    var cb = try engine.ecs.CommandBuffer.init(app.gpa);
+    defer cb.deinit();
+
+    const loco_animset = blk: {
+        const val = assets_mgr.configValuePath(
+            "animations",
+            &.{ "locomotion", "greenman" },
+        ).?;
+        break :blk try std.json.parseFromValue(components.animation.LocomotionAnimSet, app.gpa, val, .{});
+    };
+    defer loco_animset.deinit();
+
+    const ServerViews = [_]type{
+        components.transform.PositionView,
+        components.transform.VelocityView,
+        components.transform.RotationView,
+        components.collision.ColliderCircleView,
+        components.world.RoomView,
+    };
+
+    var server_it = app.world.query(&[_]type{
+        engine.net.Sync,
+        components.player.Player,
+    });
+    while (server_it.next()) |server_entity| {
+        var client_entity_id: engine.ecs.Entity = undefined;
+        if (sync_resc.map.get(server_entity)) |current_client_entity| {
+            // Update with new data from server
+            inline for (ServerViews) |V| {
+                if (server_it.getOrNull(V)) |server_view| {
+                    // const server_view = server_it.getOrNull(V) orelse continue;
+                    // See if the componet already exists for the client player.
+                    // Cannot use app.world.get() here since its null value determines a non-existent entity,
+                    // not a non-existent component! Hence, we use archetypes to determine existence of a component.
+                    const arch = app.world.archetypeOf(current_client_entity).?;
+                    if (arch.meta.hasComponent(V.Of)) {
+                        // Case 1: the component exists. Applying new values to the component.
+                        const client_view = app.world.get(V, current_client_entity).?;
+                        inline for (std.meta.fields(V.Of)) |f| {
+                            @field(client_view, f.name).* = @field(server_view, f.name).*;
+                        }
+                    } else {
+                        // Case 2: the component does not exist. Assigning a new component to the client player.
+                        try cb.assign(current_client_entity, .{
+                            engine.ecs.util.copyView(V, server_view),
+                        });
+                    }
+                }
+            }
+            client_entity_id = current_client_entity;
+        } else {
+            // Player does not exist on client. Create a new client player.
+            const client_entity_reserved = app.world.reserveEntity();
+            const bundle = ClientBundle{
+                .model3d = components.render.Model3D{ .name = "greenman", .render_texture = 0, .mesh = 0, .material = 1 },
+                .render_into = components.render.RenderInto{ .into = "player" },
+                .animation = components.animation.Animation{ .index = 0, .frame = 0, .acc = 0, .speed = 0 },
+                .locomotion_anim_set = loco_animset.value,
+                .locomotion_anim_state = components.animation.LocomotionAnimState{ .moving = false },
+            };
+            try cb.spawn(client_entity_reserved, bundle);
+            inline for (ServerViews) |V| {
+                if (server_it.getOrNull(V)) |v| {
+                    try cb.assign(client_entity_reserved, .{
+                        engine.ecs.util.copyView(V, v),
+                    });
+                }
+            }
+            client_entity_id = client_entity_reserved;
+        }
+
+        try cb.flush(&app.world);
+        try sync_resc.map.put(server_entity, client_entity_id);
+    }
+
+    const server_entities = sync_resc.map.keys();
+
+    var deleted_keys = try std.ArrayList(engine.ecs.Entity).initCapacity(app.gpa, 4);
+    defer deleted_keys.deinit(app.gpa);
+    for (server_entities) |e| {
+        if (app.world.get(components.player.PlayerView, e) == null) {
+            // We have a redundant server player in our sync map that server has no longer sent us.
+            // We'll need to remove it from the map.
+            try deleted_keys.append(app.gpa, e);
+        }
+    }
+    for (deleted_keys.items) |k| _ = sync_resc.map.swapRemove(k);
+
+    // Our work is KIRI perfect. -Xy6ep
+}
+
+pub const ClientBundle = struct {
+    model3d: components.render.Model3D,
+    render_into: components.render.RenderInto,
+    animation: components.animation.Animation,
+    locomotion_anim_set: components.animation.LocomotionAnimSet,
+    locomotion_anim_state: components.animation.LocomotionAnimState,
+};
 
 const std = @import("std");
 

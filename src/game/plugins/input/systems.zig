@@ -1,4 +1,4 @@
-pub fn playerInputSystem(app: *core.App) !void {
+pub fn hardwareInputSystem(app: *core.App) !void {
     const time_resc = app.getResource(core.Time).?;
     const input_resc = app.getResource(resources.PlayerInput).?;
 

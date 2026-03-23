@@ -180,6 +180,8 @@ pub const Archetype = struct {
             }
 
             pub inline fn extractBytes(self: *const MetaSelf, comptime Bundle: type, value: *const Bundle, out: []u8) void {
+                // BUG: This method will not work with anonymous structs. The @OffsetOf method
+                // will throw a compile error.
                 comptime if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
 
                 assert(out.len == self.size());
@@ -224,6 +226,10 @@ pub const Archetype = struct {
                     idx += s;
                 }
                 assert(idx == self.size());
+            }
+
+            pub fn hasComponent(self: *const MetaSelf, comptime Comp: type) bool {
+                return self.hasComponents(&.{Comp});
             }
 
             pub fn hasComponents(self: *const MetaSelf, comptime Comps: []const type) bool {

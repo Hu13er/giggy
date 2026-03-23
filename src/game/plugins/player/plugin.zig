@@ -39,11 +39,21 @@ pub const Plugin = struct {
         });
         _ = try app.insertResource(resources.Player, .{ .entity = player_entity });
 
-        try app.addSystem(.update, systems.playerInputSystem, .{
-            .provides = &.{"input"},
-        });
+        const is_server = app.getResource(game.plugins.core.resources.IsServer).?;
+        if (is_server.value) {
+            //
+        } else {
+            try app.addSystem(.fixed_update, systems.playerSyncSystem, .{
+                .provides = &.{"player.sync"},
+                .after_all_labels = &.{"network.tick"},
+            });
+        }
+
+        // try app.addSystem(.update, systems.playerInputSystem, .{
+        //     .provides = &.{"input"},
+        // });
         try app.addSystem(.fixed_update, systems.playerSpawnSystem, .{
-            .provides = &.{"spawn"},
+            .provides = &.{"player.spawn"},
             .after_all_labels = &.{"teleport"},
         });
     }

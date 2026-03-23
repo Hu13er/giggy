@@ -130,6 +130,14 @@ test ViewOf {
     try testing.expectEqual(c.y, v.y.*);
 }
 
+pub fn copyView(comptime View: type, value: View) View.Of {
+    var copy: View.Of = undefined;
+    inline for (meta.fields(View)) |f| {
+        @field(copy, f.name) = @field(value, f.name).*;
+    }
+    return copy;
+}
+
 const std = @import("std");
 const meta = std.meta;
 const testing = std.testing;

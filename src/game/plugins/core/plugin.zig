@@ -11,7 +11,9 @@ pub const Plugin = struct {
         time.alpha = 0;
         app.setFixedDelta(self.fixed_dt);
 
-        _ = try app.insertResource(resources.IsServer, self.is_server);
+        _ = try app.insertResource(resources.IsServer, .{
+            .value = self.is_server,
+        });
 
         _ = try app.insertResource(resources.Screen, .{
             .width = self.width,

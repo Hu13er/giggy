@@ -3,4 +3,6 @@ pub const Screen = struct {
     height: u32,
 };
 
-pub const IsServer = bool;
+pub const IsServer = struct {
+    value: bool,
+};
