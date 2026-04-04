@@ -54,25 +54,39 @@ pub const MultiField = struct {
             }
         }
 
-        pub inline fn extractBytes(self: *const Meta, comptime T: type, value: *const T, out: []u8) void {
+        pub inline fn extractBytes(self: *const Meta, comptime T: type, value: anytype, out: []u8) void {
             comptime util.assertComponent(T);
             const cid = comptime util.cidOf(T);
             assert(cid == self.cid);
             const ti = @typeInfo(T);
             const fields = ti.@"struct".fields;
             assert(fields.len == self.fields.len);
-
             assert(out.len == self.size());
 
             var idx: usize = 0;
-            inline for (fields, 0..) |f, i| {
-                const base_ptr = @intFromPtr(value);
-                const offset = @offsetOf(T, f.name);
-                const field_ptr = @as(*f.type, @ptrFromInt(base_ptr + offset));
-                const s = self.fields[i].size;
-                assert(s == @sizeOf(f.type));
-                @memcpy(out[idx .. idx + s], std.mem.asBytes(field_ptr));
-                idx += s;
+            switch (@TypeOf(value)) {
+                *const T, *T => {
+                    inline for (fields, 0..) |f, i| {
+                        const base_ptr = @intFromPtr(value);
+                        const offset = @offsetOf(T, f.name);
+                        const field_ptr = @as(*f.type, @ptrFromInt(base_ptr + offset));
+                        const s = self.fields[i].size;
+                        assert(s == @sizeOf(f.type));
+                        @memcpy(out[idx .. idx + s], std.mem.asBytes(field_ptr));
+                        idx += s;
+                    }
+                },
+                T => {
+                    inline for (fields, 0..) |f, i| {
+                        const s = self.fields[i].size;
+                        assert(s == @sizeOf(f.type));
+                        // Use toBytes instead of asBytes to support comptime values:
+                        const byts = mem.toBytes(@field(value, f.name));
+                        @memcpy(out[idx .. idx + s], &byts);
+                        idx += s;
+                    }
+                },
+                else => @compileError("value could be only *const T (for runtime extraction) and T (for comptime extraction)"),
             }
             assert(idx == self.size());
         }
