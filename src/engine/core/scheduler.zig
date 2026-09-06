@@ -136,8 +136,8 @@ pub const Scheduler = struct {
     };
 
     const StepSchedule = struct {
-        systems: std.ArrayListUnmanaged(SystemDesc) = .{},
-        compiled: std.ArrayListUnmanaged(SystemFn) = .{},
+        systems: std.ArrayListUnmanaged(SystemDesc) = .empty,
+        compiled: std.ArrayListUnmanaged(SystemFn) = .empty,
 
         pub fn deinit(self: *StepSchedule, gpa: mem.Allocator) void {
             self.systems.deinit(gpa);
@@ -181,7 +181,7 @@ pub const Scheduler = struct {
                 for (system.provides) |label| {
                     const entry = try label_map.getOrPut(gpa, label);
                     if (!entry.found_existing) {
-                        entry.value_ptr.* = .{};
+                        entry.value_ptr.* = .empty;
                     }
                     try entry.value_ptr.append(gpa, index);
                 }

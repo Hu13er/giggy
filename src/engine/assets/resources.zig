@@ -3,19 +3,22 @@ pub const AssetManager = struct {
     models: std.StringHashMap(Model),
     shaders: std.StringHashMap(rl.Shader),
     configs: std.StringHashMap(Config),
+
     gpa: mem.Allocator,
+    io: std.Io,
 
     const Self = @This();
     const Error = error{InvalidAssetBundle};
     const Config = json.Parsed(json.Value);
 
-    pub fn init(gpa: mem.Allocator) !Self {
+    pub fn init(io: std.Io, gpa: mem.Allocator) !Self {
         return Self{
             .textures = std.StringHashMap(rl.Texture2D).init(gpa),
             .models = std.StringHashMap(Model).init(gpa),
             .shaders = std.StringHashMap(rl.Shader).init(gpa),
             .configs = std.StringHashMap(Config).init(gpa),
             .gpa = gpa,
+            .io = io,
         };
     }
 
@@ -55,10 +58,15 @@ pub const AssetManager = struct {
     }
 
     pub fn loadBundle(self: *Self, bundle_filename: []const u8) !void {
-        var file = try fs.cwd().openFile(bundle_filename, .{});
-        defer file.close();
+        const cwd = std.Io.Dir.cwd();
+        var file = try cwd.openFile(self.io, bundle_filename, .{});
+        defer file.close(self.io);
 
-        const contents = try file.readToEndAlloc(self.gpa, math.maxInt(usize));
+        var file_reader = file.reader(self.io, &.{});
+        const contents = try file_reader.interface.allocRemaining(
+            self.gpa,
+            .unlimited,
+        );
         defer self.gpa.free(contents);
 
         var parsed = try json.parseFromSlice(json.Value, self.gpa, contents, .{ .allocate = .alloc_always });
@@ -212,11 +220,16 @@ pub const AssetManager = struct {
     }
 
     pub fn loadConfig(self: *Self, key: []const u8, filename: []const u8) !*json.Value {
-        var file = try fs.cwd().openFile(filename, .{});
-        defer file.close();
 
-        const contents = try file.readToEndAlloc(self.gpa, math.maxInt(usize));
-        defer self.gpa.free(contents);
+        const cwd = std.Io.Dir.cwd();
+        var file = try cwd.openFile(self.io, filename, .{});
+        defer file.close(self.io);
+
+        var file_reader = file.reader(self.io, &.{});
+        const contents = try file_reader.interface.allocRemaining(
+            self.gpa,
+            .unlimited,
+        );
 
         var parsed = try json.parseFromSlice(
             json.Value,

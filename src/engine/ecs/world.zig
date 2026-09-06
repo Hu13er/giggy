@@ -6,13 +6,13 @@ pub const World = struct {
 
     const Self = @This();
     const ArchetypeHashMap = std.AutoHashMap(u64, Archetype);
-    const EntityArchetypeHashMap = std.AutoArrayHashMap(Entity, u64);
+    const EntityArchetypeHashMap = std.AutoArrayHashMapUnmanaged(Entity, u64);
 
     pub fn init(gpa: mem.Allocator) !Self {
         return .{
             .next_entity = 0,
             .archetypes = ArchetypeHashMap.init(gpa),
-            .entity_archetype = EntityArchetypeHashMap.init(gpa),
+            .entity_archetype = .empty,
             .gpa = gpa,
         };
     }
@@ -22,7 +22,7 @@ pub const World = struct {
         while (it.next()) |arch|
             arch.deinit(self.gpa);
         self.archetypes.deinit();
-        self.entity_archetype.deinit();
+        self.entity_archetype.deinit(self.gpa);
     }
 
     pub fn spawn(self: *Self, components: anytype) !Entity {
@@ -36,10 +36,10 @@ pub const World = struct {
         assert(!self.entity_archetype.contains(e));
 
         const types = util.typesOfBundle(Bundle);
-        const meta: Archetype.StaticMeta = comptime .from(types);
+        const meta: Archetype.StaticMeta = comptime .from(&types);
         var arch = try self.getOrCreateArchetype(meta);
         try arch.append(self.gpa, e, components);
-        try self.entity_archetype.put(e, arch.hash);
+        try self.entity_archetype.put(self.gpa, e, arch.hash);
 
         self.next_entity += 1;
 
@@ -53,7 +53,7 @@ pub const World = struct {
             return error.EntityAlreadyExists;
         var arch = try self.getOrCreateArchetype(meta.*);
         try arch.appendBytes(self.gpa, entity, bytes);
-        try self.entity_archetype.put(entity, arch.hash);
+        try self.entity_archetype.put(self.gpa, entity, arch.hash);
         if (entity >= self.next_entity)
             self.next_entity = entity + 1;
     }
@@ -87,7 +87,7 @@ pub const World = struct {
         const src_meta = src_arch.meta;
 
         const Ts = util.typesOfBundle(Bundle);
-        const new_meta = comptime Archetype.StaticMeta.from(Ts);
+        const new_meta = comptime Archetype.StaticMeta.from(&Ts);
         const dst_hash = src_meta.hashJoined(new_meta);
 
         const dst_arch = blk: {
@@ -124,7 +124,7 @@ pub const World = struct {
             }
         }
 
-        try self.entity_archetype.put(entity, dst_hash);
+        try self.entity_archetype.put(self.gpa, entity, dst_hash);
 
         const removed_entity = src_arch.remove(src_index);
         assert(removed_entity == entity);
@@ -171,7 +171,7 @@ pub const World = struct {
             }
         }
 
-        try self.entity_archetype.put(entity, dst_hash);
+        try self.entity_archetype.put(self.gpa, entity, dst_hash);
 
         const removed_entity = src_arch.remove(src_index);
         assert(removed_entity == entity);
@@ -184,7 +184,7 @@ pub const World = struct {
         const src_meta = src_arch.meta;
 
         const Ts = util.typesOfBundle(Bundle);
-        const rm_meta = comptime Archetype.StaticMeta.from(Ts);
+        const rm_meta = comptime Archetype.StaticMeta.from(&Ts);
         const dst_hash = src_meta.hashDejoined(rm_meta);
 
         const dst_arch = blk: {
@@ -220,7 +220,7 @@ pub const World = struct {
             }
         }
 
-        try self.entity_archetype.put(entity, dst_hash);
+        try self.entity_archetype.put(self.gpa, entity, dst_hash);
 
         const removed_entity = src_arch.remove(src_index);
         assert(removed_entity == entity);
@@ -264,8 +264,7 @@ pub const World = struct {
             }
         }
 
-        try self.entity_archetype.put(entity, dst_hash);
-
+        try self.entity_archetype.put(self.gpa, entity, dst_hash);
         const removed_entity = src_arch.remove(src_index);
         assert(removed_entity == entity);
     }
@@ -306,7 +305,7 @@ pub const World = struct {
     }
 
     pub fn collectEmptyArchetypes(self: *const Self, gpa: mem.Allocator) ![]const u64 {
-        var to_remove: std.ArrayListUnmanaged(u64) = .{};
+        var to_remove: std.ArrayListUnmanaged(u64) = .empty;
         errdefer to_remove.deinit(gpa);
         var it = self.archetypes.iterator();
         while (it.next()) |entry| {
@@ -806,7 +805,7 @@ test "World.{spawnBytes,assignBytes,unassignMeta}" {
     };
 
     const types_pv = util.typesOfBundle(PV);
-    const meta_pv: Archetype.StaticMeta = comptime .from(types_pv);
+    const meta_pv: Archetype.StaticMeta = comptime .from(&types_pv);
     var bytes_pv: [meta_pv.size()]u8 = undefined;
     meta_pv.extractBytes(PV, &bundle_pv, bytes_pv[0..]);
     try world.spawnBytes(entity, &meta_pv, bytes_pv[0..]);
@@ -828,7 +827,7 @@ test "World.{spawnBytes,assignBytes,unassignMeta}" {
         Velocity{ .dx = 9, .dy = 99 },
     };
     const types_v = util.typesOfBundle(V);
-    const meta_v: Archetype.StaticMeta = comptime .from(types_v);
+    const meta_v: Archetype.StaticMeta = comptime .from(&types_v);
     var bytes_v: [meta_v.size()]u8 = undefined;
     meta_v.extractBytes(V, &bundle_v, bytes_v[0..]);
     try world.assignBytes(next, &meta_v, bytes_v[0..]);
@@ -838,7 +837,7 @@ test "World.{spawnBytes,assignBytes,unassignMeta}" {
     try testing.expectEqual(@as(u32, 99), vel_view2.dy.*);
 
     const types_p = util.typesOfBundle(P);
-    const meta_p: Archetype.StaticMeta = comptime .from(types_p);
+    const meta_p: Archetype.StaticMeta = comptime .from(&types_p);
     try world.unassignMeta(next, &meta_p);
     const arch = world.archetypeOf(next).?;
     try testing.expect(!arch.meta.hasComponents(&[_]type{Position}));
