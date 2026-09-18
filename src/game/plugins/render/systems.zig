@@ -30,14 +30,14 @@ pub fn updateLocomotionAnimationSystem(app: *core.App) !void {
         const new_anim = if (state.moving.*) set.run.* else set.idle.*;
         if (new_anim != av.index.*) {
             const model = assets.models.getPtr(mv.name.*).?;
-            const old_frames = @as(f32, @floatFromInt(model.animations[av.index.*].frameCount));
+            const old_frames = @as(f32, @floatFromInt(model.animations[av.index.*].keyframeCount));
             const prev_speed = @max(av.speed.*, 0.001);
             const old_max_acc = old_frames / prev_speed;
             const phase = if (old_max_acc > 0) av.acc.* / old_max_acc else 0;
 
             av.index.* = new_anim;
 
-            const new_frames_count = @as(usize, @intCast(model.animations[av.index.*].frameCount));
+            const new_frames_count = @as(usize, @intCast(model.animations[av.index.*].keyframeCount));
             const base_speed = set.base_speed.*;
             const ref = @max(set.run_speed_ref.*, 0.001);
             const scale = std.math.clamp(speed / ref, set.speed_scale_min.*, set.speed_scale_max.*);
@@ -65,7 +65,7 @@ pub fn update3DModelAnimationsSystem(app: *core.App) !void {
         const am = it.get(components.animation.AnimationView);
 
         const model = assets.models.getPtr(mv.name.*).?;
-        const frame_count = @as(usize, @intCast(model.animations[am.index.*].frameCount));
+        const frame_count = @as(usize, @intCast(model.animations[am.index.*].keyframeCount));
         const max_acc = @as(f32, @floatFromInt(frame_count)) / am.speed.*;
 
         am.acc.* += time.dt;
@@ -104,10 +104,10 @@ pub fn render3DModelsSystem(app: *core.App) !void {
         rl.ClearBackground(rl.BLANK);
         rl.BeginMode3D(camera3d);
         if (it.getOrNull(components.animation.AnimationView)) |am| {
-            rl.UpdateModelAnimationBones(
+            rl.UpdateModelAnimation(
                 model.model,
                 model.animations[am.index.*],
-                @intCast(am.frame.*),
+                @floatFromInt(am.frame.*),
             );
         }
         rl.DrawModelEx(

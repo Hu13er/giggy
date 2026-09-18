@@ -178,8 +178,9 @@ pub const Archetype = struct {
                 const fields = ti.@"struct".fields;
 
                 const Entry = struct {
+                    name: [:0]const u8,
                     cid: u32,
-                    offset: usize,
+                    offset: ?usize,
                     T: type,
                 };
 
@@ -190,8 +191,9 @@ pub const Archetype = struct {
                         util.assertComponent(T);
                         const cid = util.cidOf(T);
                         tmp[i] = .{
+                            .name = f.name,
                             .cid = cid,
-                            .offset = @offsetOf(Bundle, f.name),
+                            .offset = if (!f.is_comptime) @offsetOf(Bundle, f.name) else null,
                             .T = T,
                         };
                     }
@@ -204,8 +206,15 @@ pub const Archetype = struct {
                     const base_ptr = @intFromPtr(value);
                     inline for (entries) |e| {
                         if (e.cid == comp.cid) {
-                            const field_ptr = @as(*e.T, @ptrFromInt(base_ptr + e.offset));
-                            comp.extractBytes(e.T, field_ptr, out[idx .. idx + s]);
+                            if (e.offset) |offset| {
+                                // runtime values
+                                const field_ptr = @as(*e.T, @ptrFromInt(base_ptr + offset));
+                                comp.extractBytes(e.T, field_ptr, out[idx .. idx + s]);
+                            } else {
+                                // comptime values
+                                const field = @field(value, e.name);
+                                comp.extractBytes(e.T, field, out[idx .. idx + s]);
+                            }
                             break;
                         }
                     } else {
@@ -635,21 +644,17 @@ test "Archetype.Meta.extractBytes" {
         dx: u8,
         dy: u32,
     };
-    const Bundle = struct {
-        vel: Velocity,
-        pos: Position,
-    };
 
     const meta: Archetype.StaticMeta = comptime .from(&[_]type{ Velocity, Position });
     try testing.expectEqual(@as(usize, 11), meta.size());
 
-    const bundle = Bundle{
-        .vel = .{ .dx = 0x77, .dy = 0x8899AABB },
-        .pos = .{ .x = 0x11223344, .y = 0x5566 },
+    const bundle = .{
+        Velocity{ .dx = 0x77, .dy = 0x8899AABB },
+        Position{ .x = 0x11223344, .y = 0x5566 },
     };
 
     var out: [meta.size()]u8 = undefined;
-    meta.extractBytes(Bundle, &bundle, out[0..]);
+    meta.extractBytes(@TypeOf(bundle), &bundle, out[0..]);
 
     const pos_x_size = @sizeOf(u32);
     const pos_y_size = @sizeOf(u16);

@@ -18,10 +18,9 @@ const VelocityView = struct {
     y: *f32,
 };
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
+    const io = init.io;
 
     rl.InitWindow(800, 450, "ECS Stress");
     defer rl.CloseWindow();
@@ -34,8 +33,7 @@ pub fn main() !void {
     var sim_steps_per_frame: u64 = defaultSimStepsPerFrame;
     try resetWorld(&world, allocator, entity_count);
 
-    var sim_timer = try std.time.Timer.start();
-    var stats_timer = try std.time.Timer.start();
+    var stats_timestamp = std.Io.Timestamp.now(io, .awake);
     var sim_acc_ns: u64 = 0;
     var sim_acc_steps: u64 = 0;
     var last_ns_per_step: u64 = 0;
@@ -48,9 +46,11 @@ pub fn main() !void {
             if (entity_count > entityStep) {
                 entity_count -= entityStep;
             }
+
             if (entity_count < minEntityCount) {
                 entity_count = minEntityCount;
             }
+
             try resetWorld(&world, allocator, entity_count);
         } else if (rl.IsKeyPressed(rl.KEY_R)) {
             try resetWorld(&world, allocator, entity_count);
@@ -59,34 +59,113 @@ pub fn main() !void {
         if (rl.IsKeyPressed(rl.KEY_RIGHT)) {
             sim_steps_per_frame += 1;
         } else if (rl.IsKeyPressed(rl.KEY_LEFT)) {
-            sim_steps_per_frame = if (sim_steps_per_frame > 1) sim_steps_per_frame - 1 else 1;
+            sim_steps_per_frame =
+                if (sim_steps_per_frame > 1)
+                    sim_steps_per_frame - 1
+                else
+                    1;
         }
 
-        sim_timer.reset();
+        const sim_start = std.Io.Timestamp.now(io, .awake);
+
         for (0..sim_steps_per_frame) |_| {
             stepSimulation(&world, sim_dt);
             sim_acc_steps += 1;
         }
-        sim_acc_ns += sim_timer.read();
 
-        if (stats_timer.read() >= stats_interval_ns) {
-            last_ns_per_step = if (sim_acc_steps == 0) 0 else sim_acc_ns / sim_acc_steps;
+        const sim_end = std.Io.Timestamp.now(io, .awake);
+
+        sim_acc_ns += @intCast(
+            sim_end.nanoseconds - sim_start.nanoseconds,
+        );
+
+        if (sim_end.nanoseconds - stats_timestamp.nanoseconds >= stats_interval_ns) {
+            last_ns_per_step =
+                if (sim_acc_steps == 0)
+                    0
+                else
+                    sim_acc_ns / sim_acc_steps;
+
             sim_acc_ns = 0;
             sim_acc_steps = 0;
-            stats_timer.reset();
+            stats_timestamp = sim_end;
         }
 
         rl.BeginDrawing();
         rl.ClearBackground(rl.RAYWHITE);
-        rl.DrawText(title, 20, 20, title_font, rl.DARKGRAY);
-        drawStat(20, 70, "entities", world.count(), stats_font);
-        drawStat(20, 105, "render_fps", @intCast(rl.GetFPS()), stats_font);
-        drawStat(20, 140, "sim_steps_per_frame", sim_steps_per_frame, stats_font);
-        drawStatNs(20, 175, "ns_per_sim_step", last_ns_per_step, stats_font);
-        rl.DrawText(controls, 20, 220, controls_font, rl.DARKGRAY);
-        rl.DrawText(explain_1, 20, 255, explain_font, rl.GRAY);
-        rl.DrawText(explain_2, 20, 280, explain_font, rl.GRAY);
-        rl.DrawText(explain_3, 20, 305, explain_font, rl.GRAY);
+
+        rl.DrawText(
+            title,
+            20,
+            20,
+            title_font,
+            rl.DARKGRAY,
+        );
+
+        drawStat(
+            20,
+            70,
+            "entities",
+            world.count(),
+            stats_font,
+        );
+
+        drawStat(
+            20,
+            105,
+            "render_fps",
+            @intCast(rl.GetFPS()),
+            stats_font,
+        );
+
+        drawStat(
+            20,
+            140,
+            "sim_steps_per_frame",
+            sim_steps_per_frame,
+            stats_font,
+        );
+
+        drawStatNs(
+            20,
+            175,
+            "ns_per_sim_step",
+            last_ns_per_step,
+            stats_font,
+        );
+
+        rl.DrawText(
+            controls,
+            20,
+            220,
+            controls_font,
+            rl.DARKGRAY,
+        );
+
+        rl.DrawText(
+            explain_1,
+            20,
+            255,
+            explain_font,
+            rl.GRAY,
+        );
+
+        rl.DrawText(
+            explain_2,
+            20,
+            280,
+            explain_font,
+            rl.GRAY,
+        );
+
+        rl.DrawText(
+            explain_3,
+            20,
+            305,
+            explain_font,
+            rl.GRAY,
+        );
+
         rl.EndDrawing();
     }
 }

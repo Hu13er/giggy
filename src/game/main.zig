@@ -1,7 +1,7 @@
 const screenWidth: u32 = 800;
 const screenHeight: u32 = 600;
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
     rl.InitWindow(screenWidth, screenHeight, "Giggy: Echoes of the Hollow");
     defer rl.CloseWindow();
     const hz = rl.GetMonitorRefreshRate(rl.GetCurrentMonitor());
@@ -9,7 +9,7 @@ pub fn main() !void {
 
     const allocator = std.heap.c_allocator;
 
-    var app = try core.App.init(allocator);
+    var app = try core.App.init(init.io, allocator);
     defer app.deinit();
 
     try app.addPlugin(AssetsPlugin, .{});
@@ -21,7 +21,7 @@ pub fn main() !void {
         .fixed_dt = 1.0 / 60.0,
     });
     try app.addPlugin(game_plugins.debug.Plugin, .{});
-    try app.addPlugin(game_plugins.assets.Plugin, .{});
+    try app.addPlugin(game_plugins.assets.Plugin, .{.io = init.io});
     try app.addPlugin(game_plugins.render.Plugin, .{});
     try app.addPlugin(game_plugins.physics.Plugin, .{});
     try app.addPlugin(game_plugins.player.Plugin, .{});

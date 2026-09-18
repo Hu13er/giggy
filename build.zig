@@ -25,6 +25,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/game/main.zig"),
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
     });
     exe_mod.addImport("engine", engine_mod);
     const game_mod = b.createModule(.{
@@ -41,13 +42,11 @@ pub fn build(b: *std.Build) void {
         .root_module = exe_mod,
     });
 
-    exe.linkLibC();
-
     if (use_system_raylib) {
-        exe.linkSystemLibrary("raylib");
+        exe.root_module.linkSystemLibrary("raylib", .{});
     } else {
-        exe.addIncludePath(b.path("third_party/raylib/include/"));
-        exe.addObjectFile(b.path("third_party/raylib/lib/libraylib.a"));
+        exe.root_module.addIncludePath(b.path("third_party/raylib/include/"));
+        exe.root_module.addObjectFile(b.path("third_party/raylib/lib/libraylib.a"));
     }
 
     b.installArtifact(exe);
@@ -94,16 +93,15 @@ pub fn build(b: *std.Build) void {
     addExample(b, engine_mod, target, optimize, use_system_raylib, "path-finding", "src/examples/path_finding/main.zig", examples_step);
 }
 
-/// Probe pkg-config to see if raylib is installed system-wide.
 fn detectSystemRaylib(b: *std.Build) bool {
-    const result = std.process.Child.run(.{
-        .allocator = b.allocator,
+    const result = std.process.run(b.allocator, b.graph.io, .{
         .argv = &.{ "pkg-config", "--exists", "raylib" },
     }) catch return false;
     defer b.allocator.free(result.stdout);
     defer b.allocator.free(result.stderr);
     switch (result.term) {
-        .Exited => |code| return code == 0,
+        // Child.Term's fields are lowercase as of 0.16 (.Exited -> .exited).
+        .exited => |code| return code == 0,
         else => return false,
     }
 }
@@ -122,6 +120,7 @@ fn addExample(
         .root_source_file = b.path(root_path),
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
     });
     mod.addImport("engine", engine_mod);
 
@@ -129,13 +128,12 @@ fn addExample(
         .name = b.fmt("example-{s}", .{name}),
         .root_module = mod,
     });
-    exe.linkLibC();
 
     if (use_system_raylib) {
-        exe.linkSystemLibrary("raylib");
+        exe.root_module.linkSystemLibrary("raylib", .{});
     } else {
-        exe.addIncludePath(b.path("third_party/raylib/include/"));
-        exe.addObjectFile(b.path("third_party/raylib/lib/libraylib.a"));
+        exe.root_module.addIncludePath(b.path("third_party/raylib/include/"));
+        exe.root_module.addObjectFile(b.path("third_party/raylib/lib/libraylib.a"));
     }
 
     b.installArtifact(exe);

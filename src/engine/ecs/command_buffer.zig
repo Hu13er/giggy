@@ -44,7 +44,7 @@ pub const CommandBuffer = struct {
         comptime if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
 
         const types = util.typesOfBundle(Bundle);
-        const meta: Archetype.StaticMeta = comptime .from(types);
+        const meta: Archetype.StaticMeta = comptime .from(&types);
 
         var out: [meta.size()]u8 = undefined;
         meta.extractBytes(Bundle, &components, out[0..]);
@@ -81,7 +81,7 @@ pub const CommandBuffer = struct {
         comptime if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
 
         const types = util.typesOfBundle(Bundle);
-        const meta: Archetype.StaticMeta = comptime .from(types);
+        const meta: Archetype.StaticMeta = comptime .from(&types);
 
         var out: [meta.size()]u8 = undefined;
         meta.extractBytes(Bundle, &components, out[0..]);
@@ -104,7 +104,7 @@ pub const CommandBuffer = struct {
         comptime if (!util.isBundle(Bundle)) @compileError("expected Bundle as argument");
 
         const types = util.typesOfBundle(Bundle);
-        const meta: Archetype.StaticMeta = comptime .from(types);
+        const meta: Archetype.StaticMeta = comptime .from(&types);
         const offset = self.bytes.items.len;
 
         try self.commands.append(self.gpa, Command{

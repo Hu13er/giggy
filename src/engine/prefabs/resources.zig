@@ -105,11 +105,16 @@ pub const Registry = struct {
         try cb.flush(&app.world);
     }
 
-    pub fn loadTiledJson(allocator: mem.Allocator, file_path: []const u8) !json.Parsed(json.Value) {
-        var file = try fs.cwd().openFile(file_path, .{});
-        defer file.close();
+    pub fn loadTiledJson(io: std.Io, allocator: mem.Allocator, file_path: []const u8) !json.Parsed(json.Value) {
+        const cwd = std.Io.Dir.cwd();
+        var file = try cwd.openFile(io, file_path, .{});
+        defer file.close(io);
 
-        const contents = try file.readToEndAlloc(allocator, math.maxInt(usize));
+        var file_reader = file.reader(io, &.{});
+        const contents = try file_reader.interface.allocRemaining(
+            allocator,
+            .unlimited,
+        );
         defer allocator.free(contents);
 
         return try json.parseFromSlice(
@@ -141,6 +146,7 @@ pub const Registry = struct {
 
 test "Registry.spawnFromTiledValue spawns from object and image layers" {
     const testing = std.testing;
+    const io = testing.io;
     const alloc = testing.allocator;
 
     const Spawned = struct {
@@ -185,7 +191,7 @@ test "Registry.spawnFromTiledValue spawns from object and image layers" {
     try registry.register("box", funcs.boxFactory);
     try registry.register("sky", funcs.skyFactory);
 
-    var app = try core.app.App.init(alloc);
+    var app = try core.app.App.init(io, alloc);
     defer app.deinit();
 
     const source =

@@ -170,8 +170,8 @@ pub const Pathfinder = struct {
 
         if (!self.isWalkable(start_grid) or !self.isWalkable(end_grid)) return null;
 
-        var open_set = PQ.init(allocator, .{});
-        defer open_set.deinit();
+        var open_set = PQ.initContext(.{});
+        defer open_set.deinit(allocator);
 
         var visited = std.AutoHashMap(GridPos, f32).init(allocator);
         defer visited.deinit();
@@ -179,7 +179,7 @@ pub const Pathfinder = struct {
         var came_from = std.AutoHashMap(GridPos, GridPos).init(allocator);
         defer came_from.deinit();
 
-        try open_set.add(.{
+        try open_set.push(allocator, .{
             .pos = start_grid,
             .g = 0,
             .h = heuristics.estimate(self.heuristic, start_grid, end_grid),
@@ -187,7 +187,7 @@ pub const Pathfinder = struct {
         try visited.put(start_grid, 0);
 
         while (open_set.count() > 0) {
-            const current = open_set.remove();
+            const current = open_set.pop().?;
 
             if (current.pos.x == end_grid.x and current.pos.y == end_grid.y) {
                 return self.reconstructPath(allocator, came_from, current.pos);
@@ -211,7 +211,7 @@ pub const Pathfinder = struct {
                 try visited.put(neighbor, tentative_g);
                 try came_from.put(neighbor, current.pos);
 
-                try open_set.add(.{
+                try open_set.push(allocator, .{
                     .pos = neighbor,
                     .g = tentative_g,
                     .h = h,

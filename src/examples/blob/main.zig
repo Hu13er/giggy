@@ -55,7 +55,8 @@ pub fn main() !void {
 
     var command_buf = try ecs.CommandBuffer.init(allocator);
     defer command_buf.deinit();
-    const rng_seed: u64 = @intCast(std.time.milliTimestamp());
+
+    const rng_seed: u64 = @intFromFloat(rl.GetTime() * 1000);
     var prngs = std.Random.DefaultPrng.init(rng_seed);
 
     const initialBlobRadius: f32 = 8;

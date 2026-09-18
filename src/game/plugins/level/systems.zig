@@ -11,6 +11,7 @@ pub fn levelSystem(app: *core.App) !void {
     var it = rooms.object.iterator();
     while (it.next()) |lvl_entry| {
         var parsed = try engine_prefabs.Registry.loadTiledJson(
+            app.io,
             std.heap.page_allocator,
             lvl_entry.value_ptr.*.string,
         );

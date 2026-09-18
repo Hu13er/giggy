@@ -4,16 +4,18 @@ pub const App = struct {
     scheduler: Scheduler,
     plugin_set: std.StringHashMap(void),
     gpa: mem.Allocator,
+    io: std.Io,
 
     const Self = @This();
 
-    pub fn init(gpa: mem.Allocator) !Self {
+    pub fn init(io: std.Io, gpa: mem.Allocator) !Self {
         var app: Self = .{
             .world = try ecs.World.init(gpa),
             .resources = ResourceStore.init(gpa),
             .scheduler = Scheduler.init(gpa),
             .plugin_set = std.StringHashMap(void).init(gpa),
             .gpa = gpa,
+            .io = io,
         };
         _ = try app.insertResource(Time, .init());
         return app;
@@ -89,9 +91,10 @@ pub fn isPlugin(comptime P: type) bool {
 
 test "App plugins, resources, and scheduler" {
     const testing = std.testing;
+    const io = std.testing.io;
     const alloc = testing.allocator;
 
-    var app = try App.init(alloc);
+    var app = try App.init(io, alloc);
     defer app.deinit();
 
     var tracker_deinit_called = false;

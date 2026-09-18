@@ -8,7 +8,7 @@ pub const Graph = struct {
     const Self = @This();
 
     pub fn init(gpa: mem.Allocator) Self {
-        return .{ .nodes = .{}, .gpa = gpa };
+        return .{ .nodes = .empty, .gpa = gpa };
     }
 
     pub fn deinit(self: *Self) void {
@@ -19,7 +19,7 @@ pub const Graph = struct {
     }
 
     pub fn addNode(self: *Self) !usize {
-        try self.nodes.append(self.gpa, .{ .outs = .{} });
+        try self.nodes.append(self.gpa, .{ .outs = .empty });
         return self.nodes.items.len - 1;
     }
 
@@ -39,7 +39,7 @@ pub const Graph = struct {
             }
         }
 
-        var queue = std.ArrayListUnmanaged(usize){};
+        var queue = std.ArrayListUnmanaged(usize).empty;
         defer queue.deinit(gpa);
         for (0..node_count) |i| {
             if (indegree[i] == 0) {
@@ -47,7 +47,7 @@ pub const Graph = struct {
             }
         }
 
-        var order = std.ArrayListUnmanaged(usize){};
+        var order = std.ArrayListUnmanaged(usize).empty;
         errdefer order.deinit(gpa);
         try order.ensureTotalCapacity(gpa, node_count);
 
