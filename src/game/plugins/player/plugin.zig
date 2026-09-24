@@ -1,14 +1,15 @@
+
 pub const Plugin = struct {
     pub fn build(self: @This(), app: *core.App) !void {
         _ = self;
         const render_targets = app.getResource(render_resources.RenderTargets).?;
-        _ = try render_targets.loadRenderTexture("player", 64, 64);
+        _ = try render_targets.loadRenderTexture("player", 128, 128);
         const assets_mgr = app.getResource(engine.assets.AssetManager).?;
 
         const loco_animset = blk: {
             const val = assets_mgr.configValuePath(
                 "animations",
-                &.{ "locomotion", "greenman" },
+                &.{ "locomotion", "witch" },
             ).?;
             break :blk try json.parseFromValue(components.animation.LocomotionAnimSet, app.gpa, val, .{});
         };
@@ -18,9 +19,9 @@ pub const Plugin = struct {
             components.player.Player{ .id = 1, .just_spawned = true, .spawn_id = 0 },
             components.transform.Position{ .x = 70, .y = 70, .prev_x = 70, .prev_y = 70 },
             components.transform.Velocity{ .x = 0, .y = 0 },
-            components.collision.ColliderCircle{ .radius = 16.0, .mask = 1 },
+            components.collision.ColliderCircle{ .radius = 32.0, .mask = 1 },
             components.transform.Rotation{ .teta = 0, .prev_teta = 0, .target_teta = 0, .turn_speed_deg = 360.0 * 3 },
-            components.render.Model3D{ .name = "greenman", .render_texture = 0, .mesh = 0, .material = 1 },
+            components.render.Model3D{ .name = "witch", .render_texture = 0, .mesh = 0, .material = 2 },
             components.render.RenderInto{ .into = "player" },
             components.animation.Animation{ .index = 0, .frame = 0, .acc = 0, .speed = 0 },
             loco_animset.value,

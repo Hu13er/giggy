@@ -113,7 +113,7 @@ pub fn render3DModelsSystem(app: *core.App) !void {
         rl.DrawModelEx(
             model.model,
             rl.Vector3{ .x = 0, .y = 0, .z = 0 },
-            rl.Vector3{ .x = 0, .y = 1, .z = 0 },
+            rl.Vector3{ .x = 0, .y = 1.5, .z = 0 },
             rotation,
             rl.Vector3{ .x = 1, .y = 1, .z = 1 },
             rl.WHITE,
@@ -221,10 +221,10 @@ pub fn clearRenderablesSystem(app: *core.App) !void {
 }
 
 const camera3d = rl.Camera3D{
-    .position = .{ .x = 3.0, .y = 3.0, .z = 3.0 },
-    .target = .{ .x = 0.0, .y = 1.0, .z = 0.0 },
+    .position = .{ .x = 6.0, .y = 7.0, .z = 6.0 },
+    .target = .{ .x = 0.0, .y = 2.0, .z = 0.0 },
     .up = .{ .x = 0.0, .y = 1.0, .z = 0.0 },
-    .fovy = 3.0,
+    .fovy = 4,
     .projection = rl.CAMERA_ORTHOGRAPHIC,
 };
 

@@ -8,6 +8,7 @@
     "level2/map": "resources/level2/map.png"
   },
   "models": {
+    "witch": "resources/gltf/Witch.glb",
     "greenman": "resources/gltf/greenman.glb"
   },
   "shaders": {
