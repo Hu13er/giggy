@@ -14,6 +14,15 @@ pub const Plugin = struct {
         };
         defer loco_animset.deinit();
 
+        const render_camera = blk: {
+            const val = assets_mgr.configValuePath(
+                "render_camera",
+                &.{ "greenman" },
+            ).?;
+            break :blk try json.parseFromValue(components.render.Model3DRenderCamera, app.gpa, val, .{});
+        };
+        defer render_camera.deinit();
+
         _ = try app.world.spawn(.{
             components.enemy.Enemy{ .id = 1, .speed = 180.0 },
             components.transform.Position{ .x = 200, .y = 200, .prev_x = 200, .prev_y = 200 },
@@ -24,6 +33,7 @@ pub const Plugin = struct {
             components.render.RenderInto{ .into = "enemy" },
             components.animation.Animation{ .index = 0, .frame = 0, .acc = 0, .speed = 0 },
             loco_animset.value,
+            render_camera.value,
             components.animation.LocomotionAnimState{ .moving = false },
             level_resources.roomFromName("level1"),
         });

@@ -15,16 +15,26 @@ pub const Plugin = struct {
         };
         defer loco_animset.deinit();
 
+        const render_camera = blk: {
+            const val = assets_mgr.configValuePath(
+                "render_camera",
+                &.{ "witch" },
+            ).?;
+            break :blk try json.parseFromValue(components.render.Model3DRenderCamera, app.gpa, val, .{});
+        };
+        defer render_camera.deinit();
+
         const player_entity = try app.world.spawn(.{
             components.player.Player{ .id = 1, .just_spawned = true, .spawn_id = 0 },
             components.transform.Position{ .x = 70, .y = 70, .prev_x = 70, .prev_y = 70 },
             components.transform.Velocity{ .x = 0, .y = 0 },
-            components.collision.ColliderCircle{ .radius = 32.0, .mask = 1 },
+            components.collision.ColliderCircle{ .radius = 18.0, .mask = 1 },
             components.transform.Rotation{ .teta = 0, .prev_teta = 0, .target_teta = 0, .turn_speed_deg = 360.0 * 3 },
             components.render.Model3D{ .name = "witch", .render_texture = 0, .mesh = 0, .material = 2 },
             components.render.RenderInto{ .into = "player" },
             components.animation.Animation{ .index = 0, .frame = 0, .acc = 0, .speed = 0 },
             loco_animset.value,
+            render_camera.value,
             components.animation.LocomotionAnimState{ .moving = false },
             level_resources.roomFromName("level1"),
         });

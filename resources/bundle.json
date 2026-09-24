@@ -18,6 +18,7 @@
     }
   },
   "configs": {
+    "render_camera": "resources/configs/render_camera.json",
     "animations": "resources/configs/animations.json",
     "levels": "resources/configs/levels.json"
   }

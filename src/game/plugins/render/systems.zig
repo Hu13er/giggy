@@ -102,6 +102,18 @@ pub fn render3DModelsSystem(app: *core.App) !void {
 
         rl.BeginTextureMode(render_texture);
         rl.ClearBackground(rl.BLANK);
+        var camera3d = DEFAULT_RENDER_CAMERA;
+        if (it.getOrNull(components.render.Model3DRenderCameraView)) |cam| {
+            camera3d.position.x = cam.pos_x.*;
+            camera3d.position.y = cam.pos_y.*;
+            camera3d.position.z = cam.pos_z.*;
+
+            camera3d.target.x = cam.target_x.*;
+            camera3d.target.y = cam.target_y.*;
+            camera3d.target.z = cam.target_z.*;
+
+            camera3d.fovy = cam.fovy.*;
+        }
         rl.BeginMode3D(camera3d);
         if (it.getOrNull(components.animation.AnimationView)) |am| {
             rl.UpdateModelAnimation(
@@ -220,7 +232,7 @@ pub fn clearRenderablesSystem(app: *core.App) !void {
     renderables_list.list.clearRetainingCapacity();
 }
 
-const camera3d = rl.Camera3D{
+const DEFAULT_RENDER_CAMERA = rl.Camera3D{
     .position = .{ .x = 6.0, .y = 7.0, .z = 6.0 },
     .target = .{ .x = 0.0, .y = 2.0, .z = 0.0 },
     .up = .{ .x = 0.0, .y = 1.0, .z = 0.0 },
