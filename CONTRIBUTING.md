@@ -4,7 +4,7 @@ Thanks for your interest in helping! This project is a handcrafted ECS + game in
 
 ## Quick start
 
-1) Install Zig (recent stable version - currently `0.15.2`).
+1) Install Zig (recent stable version - currently `0.16.0`).
 2) Install raylib, or build it locally as described in `README.md`.
 3) Build and run:
 
@@ -19,10 +19,6 @@ zig build example-blob
 zig build run-example-blob
 zig build examples
 ```
-
-## What to work on
-
-If you are unsure where to help, pick something that aligns with the roadmap (`ROADMAP.md`). 
 
 ## Code conventions
 
