@@ -1,3 +1,15 @@
+pub const Sprite = struct {
+    pub const cid = 20;
+    name: []const u8,
+    index: usize,
+};
+
+pub const SpriteView = struct {
+    pub const Of = Sprite;
+    name: *[]const u8,
+    index: *usize,
+};
+
 pub const Model3D = struct {
     name: []const u8,
     mesh: usize,

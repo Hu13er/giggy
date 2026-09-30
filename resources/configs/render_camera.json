@@ -8,6 +8,24 @@
         "target_z": 0.0,
         "fovy": 4.0
     },
+    "skull": {
+        "pos_x": 6.0,
+        "pos_y": 6.0,
+        "pos_z": 6.0,
+        "target_x": 0.0,
+        "target_y": 1.0,
+        "target_z": 0.0,
+        "fovy": 3.0
+    },
+    "dragon": {
+        "pos_x": 4.0,
+        "pos_y": 4.0,
+        "pos_z": 4.0,
+        "target_x": 0.0,
+        "target_y": 1.0,
+        "target_z": 0.0,
+        "fovy": 4.0
+    },
     "greenman": {
         "pos_x": 4.0,
         "pos_y": 4.0,

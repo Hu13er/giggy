@@ -11,5 +11,8 @@ docgen_tmp/
 # deps and libs
 third_party/
 
+# todo list
+TODO.md
+
 # other files
 gimp/

@@ -8,7 +8,7 @@ pub const Plugin = struct {
         const loco_animset = blk: {
             const val = assets_mgr.configValuePath(
                 "animations",
-                &.{ "locomotion", "greenman" },
+                &.{ "locomotion", "skull" },
             ).?;
             break :blk try json.parseFromValue(components.animation.LocomotionAnimSet, app.gpa, val, .{});
         };
@@ -17,7 +17,7 @@ pub const Plugin = struct {
         const render_camera = blk: {
             const val = assets_mgr.configValuePath(
                 "render_camera",
-                &.{ "greenman" },
+                &.{ "skull" },
             ).?;
             break :blk try json.parseFromValue(components.render.Model3DRenderCamera, app.gpa, val, .{});
         };
@@ -29,7 +29,7 @@ pub const Plugin = struct {
             components.transform.Velocity{ .x = 0, .y = 0 },
             components.collision.ColliderCircle{ .radius = 16.0, .mask = 1 },
             components.transform.Rotation{ .teta = 0, .prev_teta = 0, .target_teta = 0, .turn_speed_deg = 360.0 * 2 },
-            components.render.Model3D{ .name = "greenman", .render_texture = 0, .mesh = 0, .material = 1 },
+            components.render.Model3D{ .name = "skull", .render_texture = 0, .mesh = 0, .material = 1 },
             components.render.RenderInto{ .into = "enemy" },
             components.animation.Animation{ .index = 0, .frame = 0, .acc = 0, .speed = 0 },
             loco_animset.value,

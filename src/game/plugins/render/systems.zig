@@ -1,3 +1,4 @@
+
 pub fn updateLocomotionAnimationSystem(app: *core.App) !void {
     const assets = app.getResource(engine.assets.AssetManager).?;
     const room_mgr = app.getResource(level_resources.RoomManager).?;
@@ -53,6 +54,30 @@ pub fn updateLocomotionAnimationSystem(app: *core.App) !void {
         } else {
             av.speed.* = set.base_speed.*;
         }
+    }
+}
+
+pub fn updateSpriteAnimationSystem(app: *core.App) !void {
+    const time = app.getResource(core.Time).?;
+    const assets = app.getResource(engine.assets.AssetManager).?;
+
+    var it = app.world.query(&[_]type{
+        components.render.Sprite,
+        components.animation.Animation,
+    });
+    while (it.next()) |_| {
+        const sp = it.get(components.render.SpriteView);
+        const am = it.get(components.animation.AnimationView);
+
+        const sprites = assets.sprites.getPtr(sp.name.*).?;
+        const frame_count = @as(usize, sprites.len);
+        const max_acc = @as(f32, @floatFromInt(frame_count)) / am.speed.*;
+
+        am.acc.* += time.dt;
+        while (am.acc.* > max_acc) : (am.acc.* -= max_acc) {}
+        const new_current = @as(usize, @intFromFloat(am.acc.* * am.speed.*)) % frame_count;
+        am.frame.* = new_current;
+        sp.index.* = am.frame.*;
     }
 }
 
@@ -124,7 +149,7 @@ pub fn render3DModelsSystem(app: *core.App) !void {
         }
         rl.DrawModelEx(
             model.model,
-            rl.Vector3{ .x = 0, .y = 0, .z = 0 },
+            rl.Vector3{ .x = 0, .y = 0.1, .z = 0 },
             rl.Vector3{ .x = 0, .y = 1.5, .z = 0 },
             rotation,
             rl.Vector3{ .x = 1, .y = 1, .z = 1 },
@@ -151,7 +176,13 @@ pub fn collectRenderablesSystem(app: *core.App) !void {
     const current_room_id = room_mgr.current orelse return;
     const list = &renderables_list.list;
 
-    var it_texture = app.world.query(&[_]type{ components.transform.Position, components.render.WidthHeight, components.render.Texture, components.world.Room });
+    // Normal env textures
+    var it_texture = app.world.query(&[_]type{
+        components.transform.Position,
+        components.render.WidthHeight,
+        components.render.Texture,
+        components.world.Room,
+    });
     while (it_texture.next()) |_| {
         const pos = it_texture.get(components.transform.PositionView);
         const wh = it_texture.get(components.render.WidthHeightView);
@@ -172,7 +203,47 @@ pub fn collectRenderablesSystem(app: *core.App) !void {
             .z_index = t.z_index.*,
         });
     }
-    var it_render = app.world.query(&[_]type{ components.transform.Position, components.render.RenderInto, components.world.Room });
+
+    // Sprites textures
+    var it_sprite = app.world.query(&[_]type{
+        components.transform.Position,
+        components.render.Sprite,
+        components.world.Room,
+    });
+    while (it_sprite.next()) |_| {
+        const pos = it_sprite.get(components.transform.PositionView);
+        const sp = it_sprite.get(components.render.SpriteView);
+        const rm = it_sprite.get(components.world.RoomView);
+
+        const sprite = assets.sprites.getPtr(sp.name.*).?;
+        const texture = sprite.*[sp.index.*];
+
+        if (rm.id.* != current_room_id) continue;
+
+        var w = @as(f32, @floatFromInt(texture.width));
+        var h = @as(f32, @floatFromInt(texture.height));
+        if (it_sprite.getOrNull(components.render.WidthHeightView)) |wh| {
+            w = wh.w.*;
+            h = wh.h.*;
+        }
+
+        try list.append(renderables_list.gpa, renderables.Renderable{
+            .x = interpolatedPositionX(pos, time.alpha),
+            .y = interpolatedPositionY(pos, time.alpha),
+            .w = w,
+            .h = h,
+            .flip_h = false,
+            .texture = texture,
+            .z_index = 0,
+        });
+    }
+
+    // Rednered 3D models
+    var it_render = app.world.query(&[_]type{
+        components.transform.Position,
+        components.render.RenderInto,
+        components.world.Room,
+    });
     while (it_render.next()) |_| {
         const pos = it_render.get(components.transform.PositionView);
         const into = it_render.getAuto(components.render.RenderInto).into;

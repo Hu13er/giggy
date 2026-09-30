@@ -9,6 +9,10 @@ pub const Plugin = struct {
         errdefer renderables_state.deinit();
         _ = try app.insertResource(resources.Renderables, renderables_state);
 
+        try app.addSystem(.fixed_update, systems.updateSpriteAnimationSystem, .{
+            .provides = &.{ "animation", "animation.set" },
+            .after_all_labels = &.{"physics"},
+        });
         try app.addSystem(.fixed_update, systems.updateLocomotionAnimationSystem, .{
             .provides = &.{ "animation", "animation.set" },
             .after_all_labels = &.{"physics"},

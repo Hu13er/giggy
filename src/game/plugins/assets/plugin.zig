@@ -1,5 +1,4 @@
 pub const Plugin = struct {
-    io: std.Io,
     bundle: []const u8 = "resources/bundle.json",
 
     pub fn build(self: @This(), app: *core.App) !void {

@@ -1,5 +1,6 @@
 pub const AssetManager = struct {
     textures: std.StringHashMap(rl.Texture),
+    sprites: std.StringHashMap([]rl.Texture),
     models: std.StringHashMap(Model),
     shaders: std.StringHashMap(rl.Shader),
     configs: std.StringHashMap(Config),
@@ -14,6 +15,7 @@ pub const AssetManager = struct {
     pub fn init(io: std.Io, gpa: mem.Allocator) !Self {
         return Self{
             .textures = std.StringHashMap(rl.Texture2D).init(gpa),
+            .sprites = std.StringHashMap([]rl.Texture).init(gpa),
             .models = std.StringHashMap(Model).init(gpa),
             .shaders = std.StringHashMap(rl.Shader).init(gpa),
             .configs = std.StringHashMap(Config).init(gpa),
@@ -30,6 +32,14 @@ pub const AssetManager = struct {
                 self.gpa.free(entry.key_ptr.*);
             }
             self.textures.deinit();
+        }
+        {
+            var it = self.sprites.iterator();
+            while (it.next()) |entry| {
+                for (entry.value_ptr.*) |t| rl.UnloadTexture(t);
+                self.gpa.free(entry.key_ptr.*);
+            }
+            self.sprites.deinit();
         }
         {
             var it = self.models.iterator();
@@ -91,6 +101,23 @@ pub const AssetManager = struct {
                 const zpath = try std.fmt.allocPrintSentinel(self.gpa, "{s}", .{path}, 0);
                 defer self.gpa.free(zpath);
                 _ = try self.loadTexture(entry.key_ptr.*, zpath);
+            }
+        }
+
+        if (root.get("sprites")) |value| {
+            const obj = switch (value) {
+                .object => |o| o,
+                else => return Error.InvalidAssetBundle,
+            };
+            var it = obj.iterator();
+            while (it.next()) |entry| {
+                const path = switch (entry.value_ptr.*) {
+                    .string => |s| s,
+                    else => return Error.InvalidAssetBundle,
+                };
+                const zpath = try std.fmt.allocPrintSentinel(self.gpa, "{s}", .{path}, 0);
+                defer self.gpa.free(zpath);
+                _ = try self.loadSprites(entry.key_ptr.*, zpath);
             }
         }
 
@@ -172,6 +199,68 @@ pub const AssetManager = struct {
     pub fn unloadTexture(self: *Self, key: []const u8) bool {
         const entry = self.textures.fetchRemove(key) orelse return false;
         rl.UnloadTexture(entry.value);
+        self.gpa.free(entry.key);
+        return true;
+    }
+
+    pub fn loadSprites(self: *Self, key: []const u8, dirname: [:0]const u8) ![]rl.Texture2D {
+        var dir = try std.Io.Dir.cwd().openDir(self.io, dirname, .{ .iterate = true });
+        defer dir.close(self.io);
+
+        var names: std.ArrayList([]u8) = .empty;
+        defer {
+            for (names.items) |n| self.gpa.free(n);
+            names.deinit(self.gpa);
+        }
+
+        var it = dir.iterate();
+        while (try it.next(self.io)) |entry| {
+            if (entry.kind != .file) continue;
+            if (!std.mem.endsWith(u8, entry.name, ".png")) continue;
+
+            const name_copy = try self.gpa.dupe(u8, entry.name);
+            errdefer self.gpa.free(name_copy);
+            try names.append(self.gpa, name_copy);
+        }
+
+        std.mem.sort([]u8, names.items, {}, struct {
+            fn lessThan(_: void, a: []u8, b: []u8) bool {
+                return std.mem.lessThan(u8, a, b);
+            }
+        }.lessThan);
+
+        var loaded: std.ArrayList(rl.Texture2D) = .empty;
+        errdefer {
+            for (loaded.items) |t| rl.UnloadTexture(t);
+            loaded.deinit(self.gpa);
+        }
+
+        for (names.items) |name| {
+            const full_path = try std.fs.path.joinZ(self.gpa, &.{ dirname, name });
+            defer self.gpa.free(full_path);
+
+            const texture = rl.LoadTexture(@ptrCast(full_path));
+            try loaded.append(self.gpa, texture);
+        }
+
+        const owned = try loaded.toOwnedSlice(self.gpa);
+
+        if (self.sprites.getPtr(key)) |ptr| {
+            for (ptr.*) |t| rl.UnloadTexture(t);
+            self.gpa.free(ptr.*);
+            ptr.* = owned;
+            return owned;
+        }
+        const key_copy = try self.gpa.dupe(u8, key);
+        errdefer self.gpa.free(key_copy);
+        try self.sprites.put(key_copy, owned);
+        return owned;
+    }
+
+    pub fn unloadSprites(self: *Self, key: []const u8) bool {
+        const entry = self.sprites.fetchRemove(key) orelse return false;
+        for (entry.value) |t| rl.UnloadTexture(t);
+        self.gpa.free(entry.value);
         self.gpa.free(entry.key);
         return true;
     }

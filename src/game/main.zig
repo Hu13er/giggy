@@ -21,7 +21,7 @@ pub fn main(init: std.process.Init) !void {
         .fixed_dt = 1.0 / 60.0,
     });
     try app.addPlugin(game_plugins.debug.Plugin, .{});
-    try app.addPlugin(game_plugins.assets.Plugin, .{.io = init.io});
+    try app.addPlugin(game_plugins.assets.Plugin, .{});
     try app.addPlugin(game_plugins.render.Plugin, .{});
     try app.addPlugin(game_plugins.physics.Plugin, .{});
     try app.addPlugin(game_plugins.player.Plugin, .{});

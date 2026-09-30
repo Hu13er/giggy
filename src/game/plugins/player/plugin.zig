@@ -40,6 +40,16 @@ pub const Plugin = struct {
         });
         _ = try app.insertResource(resources.Player, .{ .entity = player_entity });
 
+        // TODO: delete this shit
+        const shockwave = try app.world.spawn(.{
+            components.render.Sprite{ .name = "shockwave", .index = 0 },
+            // components.render.WidthHeight{ .w = 128, .h = 128 },
+            components.transform.Position{ .x = 250, .y = 250, .prev_x = 250, .prev_y = 250 },
+            components.animation.Animation{ .index = 0, .speed = 50.0, .frame = 0, .acc = 0 },
+            level_resources.roomFromName("level1"),
+        });
+        _ = shockwave;
+
         try app.addSystem(.update, systems.playerInputSystem, .{
             .provides = &.{"input"},
         });
@@ -47,6 +57,7 @@ pub const Plugin = struct {
             .provides = &.{"spawn"},
             .after_all_labels = &.{"teleport"},
         });
+
     }
 };
 
