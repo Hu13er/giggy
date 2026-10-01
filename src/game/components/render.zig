@@ -76,12 +76,12 @@ pub const WidthHeightView = struct {
 };
 
 pub const RenderInto = struct {
-    into: []const u8,
+    into: u32,
 };
 
 pub const RenderIntoView = struct {
     pub const Of = RenderInto;
-    into: *[]const u8,
+    into: u32,
 };
 
 const engine = @import("engine");

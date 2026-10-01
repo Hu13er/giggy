@@ -1,12 +1,16 @@
 pub const RenderTargets = struct {
-    render_textures: std.StringHashMap(rl.RenderTexture),
+    // We use HashMaps instead of ArrayList so
+    // we can notice dangling refs to died render targets
+    render_textures: std.AutoHashMap(u32, rl.RenderTexture),
+    next_id: u32,
     gpa: mem.Allocator,
 
     const Self = @This();
 
     pub fn init(gpa: mem.Allocator) !Self {
         return .{
-            .render_textures = std.StringHashMap(rl.RenderTexture).init(gpa),
+            .render_textures = .init(gpa),
+            .next_id = 0,
             .gpa = gpa,
         };
     }
@@ -15,28 +19,22 @@ pub const RenderTargets = struct {
         var it = self.render_textures.iterator();
         while (it.next()) |entry| {
             rl.UnloadRenderTexture(entry.value_ptr.*);
-            self.gpa.free(entry.key_ptr.*);
         }
         self.render_textures.deinit();
     }
 
-    pub fn loadRenderTexture(self: *Self, key: []const u8, width: c_int, height: c_int) !*rl.RenderTexture {
+    pub fn load(self: *Self, width: c_int, height: c_int) !u32 {
         const texture = rl.LoadRenderTexture(width, height);
-        if (self.render_textures.getPtr(key)) |ptr| {
-            rl.UnloadRenderTexture(ptr.*);
-            ptr.* = texture;
-            return ptr;
-        }
-        const key_copy = try self.gpa.dupe(u8, key);
-        errdefer self.gpa.free(key_copy);
-        try self.render_textures.put(key_copy, texture);
-        return self.render_textures.getPtr(key_copy).?;
+        const id = self.next_id;
+        self.next_id += 1;
+        errdefer self.next_id = id;
+        try self.render_textures.put(id, texture);
+        return id;
     }
 
-    pub fn unloadRenderTexture(self: *Self, key: []const u8) bool {
+    pub fn unload(self: *Self, key: u32) bool {
         const entry = self.render_textures.fetchRemove(key) orelse return false;
         rl.UnloadRenderTexture(entry.value);
-        self.gpa.free(entry.key);
         return true;
     }
 };

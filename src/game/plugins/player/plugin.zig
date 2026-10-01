@@ -3,7 +3,7 @@ pub const Plugin = struct {
     pub fn build(self: @This(), app: *core.App) !void {
         _ = self;
         const render_targets = app.getResource(render_resources.RenderTargets).?;
-        _ = try render_targets.loadRenderTexture("player", 128, 128);
+        const rt = try render_targets.load(128, 128);
         const assets_mgr = app.getResource(engine.assets.AssetManager).?;
 
         const loco_animset = blk: {
@@ -31,7 +31,7 @@ pub const Plugin = struct {
             components.collision.ColliderCircle{ .radius = 18.0, .mask = 1 },
             components.transform.Rotation{ .teta = 0, .prev_teta = 0, .target_teta = 0, .turn_speed_deg = 360.0 * 3 },
             components.render.Model3D{ .name = "witch", .render_texture = 0, .mesh = 0, .material = 2 },
-            components.render.RenderInto{ .into = "player" },
+            components.render.RenderInto{ .into = rt },
             components.animation.Animation{ .index = 0, .frame = 0, .acc = 0, .speed = 0 },
             loco_animset.value,
             render_camera.value,
