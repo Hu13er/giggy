@@ -42,8 +42,8 @@ pub const Plugin = struct {
 
         // TODO: delete this shit
         const shockwave = try app.world.spawn(.{
-            components.render.Sprite{ .name = "shockwave", .index = 0 },
-            // components.render.WidthHeight{ .w = 128, .h = 128 },
+            components.render.Sprite{ .name = "shockwave", .index = 0, .z_index = -5 },
+            components.render.WidthHeight{ .w = 128, .h = 128 },
             components.transform.Position{ .x = 250, .y = 250, .prev_x = 250, .prev_y = 250 },
             components.animation.Animation{ .index = 0, .speed = 50.0, .frame = 0, .acc = 0 },
             level_resources.roomFromName("level1"),

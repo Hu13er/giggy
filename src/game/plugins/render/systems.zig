@@ -77,6 +77,9 @@ pub fn updateSpriteAnimationSystem(app: *core.App) !void {
         while (am.acc.* > max_acc) : (am.acc.* -= max_acc) {}
         const new_current = @as(usize, @intFromFloat(am.acc.* * am.speed.*)) % frame_count;
         am.frame.* = new_current;
+
+        // TODO: maybe we need another system for applying to Sprite
+        // component.
         sp.index.* = am.frame.*;
     }
 }
@@ -234,7 +237,7 @@ pub fn collectRenderablesSystem(app: *core.App) !void {
             .h = h,
             .flip_h = false,
             .texture = texture,
-            .z_index = 0,
+            .z_index = sp.z_index.*,
         });
     }
 
@@ -277,14 +280,21 @@ pub fn renderRenderablesSystem(app: *core.App) !void {
         }
     }.lessThan);
     for (list.items) |r| {
-        const flip: f32 = if (r.flip_h) -1 else 1;
+        const flip: c_int = if (r.flip_h) -1 else 1;
         const src = rl.Rectangle{
             .x = 0,
             .y = 0,
-            .width = r.w,
-            .height = r.h * flip,
+            .width = @floatFromInt(r.texture.width),
+            .height = @floatFromInt(r.texture.height * flip),
         };
-        rl.DrawTextureRec(r.texture, src, .{ .x = r.x, .y = r.y }, rl.WHITE);
+        const dst = rl.Rectangle{
+            .x = r.x,
+            .y = r.y,
+            .width = r.w,
+            .height = r.h,
+        };
+        rl.DrawTexturePro(r.texture, src, dst, .{ .x = 0, .y = 0}, 0, rl.WHITE);
+        // rl.DrawTextureRec(r.texture, src, .{ .x = r.x, .y = r.y }, rl.WHITE);
     }
 }
 

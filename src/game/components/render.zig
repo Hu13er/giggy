@@ -2,12 +2,14 @@ pub const Sprite = struct {
     pub const cid = 20;
     name: []const u8,
     index: usize,
+    z_index: i16,
 };
 
 pub const SpriteView = struct {
     pub const Of = Sprite;
     name: *[]const u8,
     index: *usize,
+    z_index: *i16,
 };
 
 pub const Model3D = struct {
