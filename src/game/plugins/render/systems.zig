@@ -286,8 +286,12 @@ pub fn collectRenderablesSystem(app: *core.App) !void {
         if (rm.id.* != current_room_id) continue;
         const render_texture = render_targets.render_textures.get(into.*).?;
 
-        const w = @as(f32, @floatFromInt(render_texture.texture.width));
-        const h = @as(f32, @floatFromInt(render_texture.texture.height));
+        var w = @as(f32, @floatFromInt(render_texture.texture.width));
+        var h = @as(f32, @floatFromInt(render_texture.texture.height));
+        if (it_render.getOrNull(components.render.WidthHeightView)) |wh| {
+            w = wh.w.*;
+            h = wh.h.*;
+        }
 
         try list.append(renderables_list.gpa, renderables.Renderable{
             .x = interpolatedPositionX(pos, time.alpha) - h / 2.0,

@@ -15,7 +15,7 @@
         "target_x": 0.0,
         "target_y": 0.0,
         "target_z": 0.0,
-        "fovy": 0.8
+        "fovy": 1
     },
     "skull": {
         "pos_x": 6.0,

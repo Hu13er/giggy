@@ -50,9 +50,10 @@ pub const Plugin = struct {
         };
         defer shockwave_camera.deinit();
 
-        const rt2 = try render_targets.load(128, 128);
+        const rt2 = try render_targets.load(256, 256);
         const shockwave = try app.world.spawn(.{
             components.render.Sprite{ .name = "shockwave", .index = 0 },
+            components.render.WidthHeight{ .w = 128, .h = 128 },
             components.render.ZIndex{ .value = -5 },
             components.render.RenderInto{ .into = rt2 },
             shockwave_camera.value,
