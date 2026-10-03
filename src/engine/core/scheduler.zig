@@ -104,6 +104,7 @@ pub const Scheduler = struct {
                 t.*.dt = self.fixed_dt;
                 t.*.fixed_dt = self.fixed_dt;
                 t.*.alpha = 0;
+                t.*.tick += 1;
             }
             try self.runStep(.fixed_update, app);
         }

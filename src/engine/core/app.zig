@@ -75,9 +75,10 @@ pub const Time = struct {
     dt: f32,
     fixed_dt: f32,
     alpha: f32,
+    tick: u32,
 
     pub fn init() Time {
-        return .{ .dt = 0, .fixed_dt = 0, .alpha = 0 };
+        return .{ .dt = 0, .fixed_dt = 0, .alpha = 0, .tick = 1 };
     }
 };
 

@@ -1,6 +1,7 @@
 pub const Plugin = struct {
     pub fn build(self: @This(), app: *core.App) !void {
         _ = self;
+        _ = try app.insertResource(resources.ChasePath, .init(app.gpa));
         const render_targets = app.getResource(render_resources.RenderTargets).?;
         const rt = try render_targets.load(64, 64);
         const assets_mgr = app.getResource(engine.assets.AssetManager).?;
@@ -24,8 +25,8 @@ pub const Plugin = struct {
         defer render_camera.deinit();
 
         _ = try app.world.spawn(.{
-            components.enemy.Enemy{ .id = 1, .speed = 180.0 },
-            components.transform.Position{ .x = 200, .y = 200, .prev_x = 200, .prev_y = 200 },
+            components.enemy.Enemy{ .id = 1, .speed = 180.0, .state = .chase },
+            components.transform.Position{ .x = 750, .y = 400, .prev_x = 200, .prev_y = 200 },
             components.transform.Velocity{ .x = 0, .y = 0 },
             components.collision.ColliderCircle{ .radius = 16.0, .mask = 1 },
             components.transform.Rotation{ .teta = 0, .prev_teta = 0, .target_teta = 0, .turn_speed_deg = 360.0 * 2 },
@@ -38,7 +39,7 @@ pub const Plugin = struct {
             level_resources.roomFromName("level1"),
         });
 
-        try app.addSystem(.fixed_update, systems.enemyChaseSystem, .{
+        try app.addSystem(.fixed_update, systems.enemyAISystem, .{
             .provides = &.{"input"},
         });
     }
@@ -54,3 +55,4 @@ const components = game.components;
 const level_resources = game.plugins.level.resources;
 const render_resources = game.plugins.render.resources;
 const systems = game.plugins.enemy.systems;
+const resources = game.plugins.enemy.resources;
