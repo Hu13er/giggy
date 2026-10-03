@@ -21,6 +21,10 @@ pub const Plugin = struct {
             .provides = &.{ "animation", "animation.update" },
             .after_all_labels = &.{"animation.set"},
         });
+        try app.addSystem(.render, systems.renderSpritesSystem, .{
+            .provides = &.{systems.LabelRenderPrepass},
+            .after_all_labels = &.{"animation.update"},
+        });
         try app.addSystem(.render, systems.render3DModelsSystem, .{
             .provides = &.{systems.LabelRenderPrepass},
             .after_all_labels = &.{"animation.update"},

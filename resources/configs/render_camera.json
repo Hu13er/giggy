@@ -8,6 +8,15 @@
         "target_z": 0.0,
         "fovy": 4.0
     },
+    "shockwave": {
+        "pos_x": 1.0,
+        "pos_y": 1.0,
+        "pos_z": 1.0,
+        "target_x": 0.0,
+        "target_y": 0.0,
+        "target_z": 0.0,
+        "fovy": 0.8
+    },
     "skull": {
         "pos_x": 6.0,
         "pos_y": 6.0,

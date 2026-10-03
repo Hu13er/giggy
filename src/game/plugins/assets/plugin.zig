@@ -19,6 +19,12 @@ pub const Plugin = struct {
                 greenman_model.model.materials[1].shader = skinning_shader.*;
             }
         }
+
+        const plane_mesh = rl.GenMeshPlane(1.0, 1.0, 1, 1);
+        const plane_model = rl.LoadModelFromMesh(plane_mesh);
+
+        const k = try app.gpa.dupe(u8, "plane");
+        try assets_mgr.models.put(k, .{ .model = plane_model, .animations = &.{}});
     }
 };
 

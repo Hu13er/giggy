@@ -41,9 +41,21 @@ pub const Plugin = struct {
         _ = try app.insertResource(resources.Player, .{ .entity = player_entity });
 
         // TODO: delete this shit
+        const shockwave_camera = blk: {
+            const val = assets_mgr.configValuePath(
+                "render_camera",
+                &.{ "shockwave" },
+            ).?;
+            break :blk try json.parseFromValue(components.render.Model3DRenderCamera, app.gpa, val, .{});
+        };
+        defer shockwave_camera.deinit();
+
+        const rt2 = try render_targets.load(128, 128);
         const shockwave = try app.world.spawn(.{
-            components.render.Sprite{ .name = "shockwave", .index = 0, .z_index = -5 },
-            components.render.WidthHeight{ .w = 128, .h = 128 },
+            components.render.Sprite{ .name = "shockwave", .index = 0 },
+            components.render.ZIndex{ .value = -5 },
+            components.render.RenderInto{ .into = rt2 },
+            shockwave_camera.value,
             components.transform.Position{ .x = 250, .y = 250, .prev_x = 250, .prev_y = 250 },
             components.animation.Animation{ .index = 0, .speed = 50.0, .frame = 0, .acc = 0 },
             level_resources.roomFromName("level1"),

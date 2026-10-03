@@ -77,10 +77,6 @@ pub fn updateSpriteAnimationSystem(app: *core.App) !void {
         while (am.acc.* > max_acc) : (am.acc.* -= max_acc) {}
         const new_current = @as(usize, @intFromFloat(am.acc.* * am.speed.*)) % frame_count;
         am.frame.* = new_current;
-
-        // TODO: maybe we need another system for applying to Sprite
-        // component.
-        sp.index.* = am.frame.*;
     }
 }
 
@@ -100,6 +96,73 @@ pub fn update3DModelAnimationsSystem(app: *core.App) !void {
         while (am.acc.* > max_acc) : (am.acc.* -= max_acc) {}
         const new_current = @as(usize, @intFromFloat(am.acc.* * am.speed.*)) % frame_count;
         am.frame.* = new_current;
+    }
+}
+
+pub fn renderSpritesSystem(app: *core.App) !void {
+    // const time = app.getResource(core.Time).?;
+    const assets_mgr = app.getResource(engine.assets.AssetManager).?;
+    const render_targets = app.getResource(resources.RenderTargets).?;
+    const room_mgr = app.getResource(level_resources.RoomManager).?;
+    const current_room_id = room_mgr.current orelse return;
+    var it = app.world.query(&[_]type{
+        components.render.Sprite,
+        components.render.RenderInto,
+        components.world.Room,
+    });
+    while (it.next()) |_| {
+        const sp = it.get(components.render.SpriteView);
+        const into = it.getAuto(components.render.RenderInto).into;
+        const rm = it.get(components.world.RoomView);
+
+        if (rm.id.* != current_room_id) continue;
+
+        const index = if (it.getOrNull(components.animation.AnimationView)) |anim|
+            anim.frame.*
+        else
+            0;
+        const sprite = assets_mgr.sprites.get(sp.name.*).?;
+        const render_texture = render_targets.render_textures.get(into.*).?;
+
+        rl.BeginTextureMode(render_texture);
+        rl.ClearBackground(rl.BLANK);
+
+        if (it.getOrNull(components.render.Model3DRenderCameraView)) |cam| {
+            var camera3d = DEFAULT_RENDER_CAMERA;
+
+            camera3d.position.x = cam.pos_x.*;
+            camera3d.position.y = cam.pos_y.*;
+            camera3d.position.z = cam.pos_z.*;
+
+            camera3d.target.x = cam.target_x.*;
+            camera3d.target.y = cam.target_y.*;
+            camera3d.target.z = cam.target_z.*;
+
+            camera3d.fovy = cam.fovy.*;
+
+            var plane_model = assets_mgr.models.get("plane").?;
+            plane_model.model.materials[0].maps[rl.MATERIAL_MAP_DIFFUSE].texture = sprite[index];
+
+            rl.BeginMode3D(camera3d);
+            rl.DrawModel(plane_model.model, .{ .x = 0, .y = 0, .z = 0 }, 1, rl.WHITE);
+            rl.EndMode3D();
+        } else {
+            const src = rl.Rectangle{
+                .x = 0,
+                .y = 0,
+                .width = @floatFromInt(sprite[index].width),
+                .height = @floatFromInt(-sprite[index].height),
+            };
+            const dst = rl.Rectangle{
+                .x = 0,
+                .y = 0,
+                .width = @floatFromInt(render_texture.texture.width),
+                .height = @floatFromInt(render_texture.texture.height),
+            };
+            rl.DrawTexturePro(sprite[index], src, dst, .{ .x = 0, .y = 0}, 0, rl.WHITE);
+        }
+
+        rl.EndTextureMode();
     }
 }
 
@@ -190,6 +253,7 @@ pub fn collectRenderablesSystem(app: *core.App) !void {
         const pos = it_texture.get(components.transform.PositionView);
         const wh = it_texture.get(components.render.WidthHeightView);
         const t = it_texture.get(components.render.TextureView);
+        const z_index = if (it_texture.getAutoOrNull(components.render.ZIndex)) |z| z.value.* else 0;
         const rm = it_texture.get(components.world.RoomView);
 
         if (rm.id.* != current_room_id) continue;
@@ -203,45 +267,11 @@ pub fn collectRenderablesSystem(app: *core.App) !void {
             .h = wh.h.*,
             .flip_h = false,
             .texture = texture.*,
-            .z_index = t.z_index.*,
+            .z_index = z_index,
         });
     }
 
-    // Sprites textures
-    var it_sprite = app.world.query(&[_]type{
-        components.transform.Position,
-        components.render.Sprite,
-        components.world.Room,
-    });
-    while (it_sprite.next()) |_| {
-        const pos = it_sprite.get(components.transform.PositionView);
-        const sp = it_sprite.get(components.render.SpriteView);
-        const rm = it_sprite.get(components.world.RoomView);
-
-        const sprite = assets.sprites.getPtr(sp.name.*).?;
-        const texture = sprite.*[sp.index.*];
-
-        if (rm.id.* != current_room_id) continue;
-
-        var w = @as(f32, @floatFromInt(texture.width));
-        var h = @as(f32, @floatFromInt(texture.height));
-        if (it_sprite.getOrNull(components.render.WidthHeightView)) |wh| {
-            w = wh.w.*;
-            h = wh.h.*;
-        }
-
-        try list.append(renderables_list.gpa, renderables.Renderable{
-            .x = interpolatedPositionX(pos, time.alpha),
-            .y = interpolatedPositionY(pos, time.alpha),
-            .w = w,
-            .h = h,
-            .flip_h = false,
-            .texture = texture,
-            .z_index = sp.z_index.*,
-        });
-    }
-
-    // Rednered 3D models
+    // Render renderables targets
     var it_render = app.world.query(&[_]type{
         components.transform.Position,
         components.render.RenderInto,
@@ -250,6 +280,7 @@ pub fn collectRenderablesSystem(app: *core.App) !void {
     while (it_render.next()) |_| {
         const pos = it_render.get(components.transform.PositionView);
         const into = it_render.getAuto(components.render.RenderInto).into;
+        const z_index = if (it_render.getAutoOrNull(components.render.ZIndex)) |z| z.value.* else 0;
         const rm = it_render.get(components.world.RoomView);
 
         if (rm.id.* != current_room_id) continue;
@@ -265,7 +296,7 @@ pub fn collectRenderablesSystem(app: *core.App) !void {
             .h = h,
             .flip_h = true,
             .texture = render_texture.texture,
-            .z_index = 0,
+            .z_index = z_index,
         });
     }
 }

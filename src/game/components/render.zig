@@ -2,14 +2,12 @@ pub const Sprite = struct {
     pub const cid = 20;
     name: []const u8,
     index: usize,
-    z_index: i16,
 };
 
 pub const SpriteView = struct {
     pub const Of = Sprite;
     name: *[]const u8,
     index: *usize,
-    z_index: *i16,
 };
 
 pub const Model3D = struct {
@@ -55,13 +53,11 @@ pub const Model3DRenderCameraView = struct {
 
 pub const Texture = struct {
     name: []const u8,
-    z_index: i16,
 };
 
 pub const TextureView = struct {
     pub const Of = Texture;
     name: *[]const u8,
-    z_index: *i16,
 };
 
 pub const WidthHeight = struct {
@@ -81,7 +77,16 @@ pub const RenderInto = struct {
 
 pub const RenderIntoView = struct {
     pub const Of = RenderInto;
-    into: u32,
+    into: *u32,
+};
+
+pub const ZIndex = struct {
+    value: i16,
+};
+
+pub const ZIndexView = struct {
+    pub const Of = ZIndex;
+    value: *i16,
 };
 
 const engine = @import("engine");

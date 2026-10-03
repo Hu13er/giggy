@@ -111,7 +111,8 @@ pub const PrefabsFactory = struct {
         try cb.spawnBundle(entity, LayerBundle, .{
             .pos = .{ .x = x, .y = y, .prev_x = x, .prev_y = y },
             .wh = .{ .w = w, .h = h },
-            .tex = .{ .name = owned_key, .z_index = z_index },
+            .tex = .{ .name = owned_key },
+            .z_index = .{ .value = z_index },
             .room = resources.roomFromName(room_ref),
         });
     }
@@ -374,6 +375,7 @@ const LayerBundle = struct {
     pos: components.transform.Position,
     wh: components.render.WidthHeight,
     tex: components.render.Texture,
+    z_index: components.render.ZIndex,
     room: components.world.Room,
 };
 

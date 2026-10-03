@@ -384,10 +384,12 @@ pub const Model = struct {
     }
 
     pub fn unload(self: *const Model) void {
-        rl.UnloadModelAnimations(
-            @ptrCast(self.animations.ptr),
-            @intCast(self.animations.len),
-        );
+        if (self.animations.len > 0) {
+            rl.UnloadModelAnimations(
+                @ptrCast(self.animations.ptr),
+                @intCast(self.animations.len),
+            );
+        }
         rl.UnloadModel(self.model);
     }
 };
