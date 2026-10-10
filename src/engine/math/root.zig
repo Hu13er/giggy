@@ -74,6 +74,19 @@ pub fn pushFromLine(c: Vec2, a: Vec2, b: Vec2, radius: f32) Vec2 {
     return n.scale(radius - dist);
 }
 
+pub fn nearestPointOnCircle(
+    center: Vec2,
+    radius: f32,
+    point: Vec2,
+) Vec2 {
+    const dir = point.sub(center);
+    const len = dir.abs();
+    if (len <= 0.1) {
+        return .{ .x = center.x + radius, .y = center.y };
+    }
+    return center.add(dir.normalize().scale(radius));
+}
+
 const std = @import("std");
 const math = std.math;
 const engine = @import("engine");

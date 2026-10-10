@@ -6,6 +6,7 @@ pub const Plugin = struct {
         try app.addSystem(.fixed_update, systems.enemyAISystem, .{
             .provides = &.{"input", "ai"},
         });
+        try app.addSystem(.fixed_update, systems.shockwaveHitboxSystem, .{});
         try app.addSystem(.update, systems.shockwaveExpandSystem, .{});
         try app.addSystem(.update, systems.updateAnimationSystem, .{
             .provides = &.{"animation"},

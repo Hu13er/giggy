@@ -35,3 +35,20 @@ pub const ShockwaveView = struct {
     ttl: *f32,
     accum: *f32,
 };
+
+pub const ShockwaveHitbox = struct {
+    width: f32 = 0,
+    height: f32 = 0,
+    mask: u64,
+    hit: bool = false, // TODO: delete this!
+    accum: u32 = 0,
+};
+
+pub const ShockwaveHitboxView = struct {
+    pub const Of = ShockwaveHitbox;
+    width: *f32,
+    height: *f32,
+    mask: *u64,
+    hit: *bool,
+    accum: *u32,
+};

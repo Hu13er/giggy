@@ -155,7 +155,7 @@ pub const PrefabsFactory = struct {
                     .y0 = base_y + prev.y,
                     .x1 = base_x + next.x,
                     .y1 = base_y + next.y,
-                    .mask = 1,
+                    .mask = 3,
                 },
                 .room = resources.roomFromName(room_ref),
             });
@@ -168,7 +168,7 @@ pub const PrefabsFactory = struct {
                 .y0 = base_y + prev.y,
                 .x1 = base_x + first.x,
                 .y1 = base_y + first.y,
-                .mask = 1,
+                .mask = 3,
             },
             .room = resources.roomFromName(room_ref),
         });

@@ -30,6 +30,7 @@ pub fn renderDebugSystem(app: *core.App) !void {
     if (!debug.enabled) return;
     renderBoxes(app);
     renderColliders(app);
+    renderEnemyHitboxes(app);
     renderWalkables(app);
     renderPoints(debug);
 }
@@ -101,6 +102,30 @@ fn renderBoxes(app: *core.App) void {
             .width = w,
             .height = h,
         }, 4.0, rl.RED);
+    }
+}
+
+fn renderEnemyHitboxes(app: *core.App) void {
+    const time = app.getResource(core.Time).?;
+    const room_mgr = app.getResource(level_resources.RoomManager).?;
+    const current_room_id = room_mgr.current orelse return;
+    var circle_it = app.world.query(&[_]type{ components.transform.Position, components.enemy.ShockwaveHitbox, components.world.Room });
+    while (circle_it.next()) |_| {
+        const pos = circle_it.get(components.transform.PositionView);
+        const hitbox = circle_it.get(components.enemy.ShockwaveHitboxView);
+        const rm = circle_it.get(components.world.RoomView);
+
+        if (rm.id.* != current_room_id) continue;
+
+        const x = interpolatedPositionX(pos, time.alpha);
+        const y = interpolatedPositionY(pos, time.alpha);
+        const color = rl.ColorAlpha(if (hitbox.hit.*) rl.RED else rl.BLUE, 0.2);
+        rl.DrawEllipseV(
+            .{ .x = x, .y = y },
+            hitbox.width.* / 2.0,
+            hitbox.height.* / 2.0,
+            color,
+        );
     }
 }
 

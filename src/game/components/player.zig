@@ -11,3 +11,14 @@ pub const PlayerView = struct {
     just_spawned: *bool,
     spawn_id: *u8,
 };
+
+pub const HurtBox = struct {
+    radius: f32,
+    mask: u64,
+};
+
+pub const HurtBoxView = struct {
+    pub const Of = HurtBox;
+    radius: *f32,
+    mask: *u64,
+};

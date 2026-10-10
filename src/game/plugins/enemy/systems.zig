@@ -74,7 +74,7 @@ pub fn enemyAISystem(app: *core.App) !void {
 
     const player_pos = app.world.get(components.transform.PositionView, player_res.entity) orelse return;
     const player_room = app.world.get(components.world.RoomView, player_res.entity) orelse return;
-    const player_col = app.world.get(components.collision.ColliderCircleView, player_res.entity);
+    const player_hurtbox = app.world.get(components.player.HurtBoxView, player_res.entity);
 
     const bounds = room_mgr.getBounds(player_room.id.*) orelse return;
     const grid = room_mgr.getGrid(player_room.id.*) orelse return;
@@ -171,13 +171,13 @@ pub fn enemyAISystem(app: *core.App) !void {
                     vel.y.* = 0;
                 }
 
-                if (player_col != null) {
+                if (player_hurtbox != null) {
                     if (it.getOrNull(components.collision.ColliderCircleView)) |enemy_col| blk: {
-                        if (player_col.?.mask.* & enemy_col.mask.* == 0)
+                        if (player_hurtbox.?.mask.* & enemy_col.mask.* == 0)
                             break :blk;
                         if (!rl.CheckCollisionCircles(
                             .{ .x = player_pos.x.*, .y = player_pos.y.* },
-                            player_col.?.radius.*,
+                            player_hurtbox.?.radius.* + 5.0,
                             .{ .x = pos.x.*, .y = pos.y.* },
                             enemy_col.radius.*,
                         )) break :blk;
@@ -298,6 +298,7 @@ fn spawnShockwave(app: *core.App, cb: *ecs.CommandBuffer, pos: xmath.Vec2) !void
             .size_limit = 256,
             .ttl = 1.0,
         },
+        components.enemy.ShockwaveHitbox{ .mask = 1 },
         components.render.Sprite{ .name = "shockwave", .index = 0 },
         components.render.WidthHeight{ .w = 0, .h = 0 },
         components.render.Alpha{ .alpha = 1.0 },
@@ -317,6 +318,7 @@ fn spawnShockwave(app: *core.App, cb: *ecs.CommandBuffer, pos: xmath.Vec2) !void
             .accum = 0,
             .priority = 0,
         },
+        // TODO: get it from players room
         level_resources.roomFromName("level1"),
     });
 }
@@ -349,6 +351,7 @@ pub fn shockwaveExpandSystem(app: *core.App) !void {
             wh.w.* = shockwave.size.*;
             wh.h.* = shockwave.size.*;
             // fade out
+            // TODO: we should despawn based on ticks not actual time
             const delta: f32 = time_res.dt / shockwave.ttl.*;
             if (alpha.alpha.* > 0) {
                 alpha.alpha.* = @max(alpha.alpha.* - delta, 0);
@@ -359,6 +362,71 @@ pub fn shockwaveExpandSystem(app: *core.App) !void {
                 }
                 try cb.despawn(entity);
             }
+        }
+    }
+}
+
+const SHOCKWAVE_RENDER_ACTUAL_POR = 0.8;
+const SHOCKWAVE_ESTIMATE_POINTS_COUNT = 16;
+
+pub fn shockwaveHitboxSystem(app: *core.App) !void {
+    const time_res = app.getResource(core.Time).?;
+    const debug_res = app.getResource(debug.resources.DebugState).?;
+
+    var it = app.world.query(&[_]type{
+        components.transform.Position,
+        components.enemy.Shockwave,
+        components.enemy.ShockwaveHitbox,
+        components.world.Room,
+    });
+    while (it.next()) |_| {
+        const pos = it.get(components.transform.PositionView);
+        const shockwave = it.get(components.enemy.ShockwaveView);
+        const hitbox = it.get(components.enemy.ShockwaveHitboxView);
+        const rm = it.get(components.world.RoomView);
+
+        if (hitbox.width.* < shockwave.size_limit.* * SHOCKWAVE_RENDER_ACTUAL_POR - 1.0) {
+            hitbox.accum.* += 1;
+            const t = @as(f32, @floatFromInt(hitbox.accum.*)) * (time_res.fixed_dt); // convert tick to actual time
+            const size = projectileScale(t, shockwave.size_init.*, shockwave.size_limit.*, 7.0);
+            hitbox.width.* = size * SHOCKWAVE_RENDER_ACTUAL_POR;
+            hitbox.height.* = size * 0.6 * SHOCKWAVE_RENDER_ACTUAL_POR;
+        }
+
+        var samples: [SHOCKWAVE_ESTIMATE_POINTS_COUNT]rl.Vector2 = undefined;
+        for (0..SHOCKWAVE_ESTIMATE_POINTS_COUNT) |t| {
+            const teta = 2.0 * std.math.pi * @as(f32, @floatFromInt(t)) /
+                            @as(f32, @floatFromInt(SHOCKWAVE_ESTIMATE_POINTS_COUNT));
+            samples[t].x = pos.x.* + hitbox.width.* * std.math.cos(teta) / 2.0;
+            samples[t].y = pos.y.* + hitbox.height.* * std.math.sin(teta) / 2.0;
+        }
+
+        debug_res.clearPoints();
+        for (samples) |s| try debug_res.addPoint(.{ .x = s.x, .y = s.y, .color = rl.PINK });
+
+        hitbox.hit.* = false;
+        var hurtbox_it = app.world.query(&[_]type{
+            components.transform.Position,
+            components.player.HurtBox,
+            components.world.Room,
+        });
+        while (hurtbox_it.next()) |_| {
+            const hb_pos = hurtbox_it.get(components.transform.PositionView);
+            const hb_col = hurtbox_it.get(components.player.HurtBoxView);
+            const hb_rm = hurtbox_it.get(components.world.RoomView);
+
+            if (rm.id.* != hb_rm.id.*) continue;
+
+            const nearest = xmath.nearestPointOnCircle(
+                .{ .x = hb_pos.x.*, .y = hb_pos.y.* },
+                hb_col.radius.*,
+                .{ .x = pos.x.*, .y = pos.y.* },
+            );
+            if (!rl.CheckCollisionPointPoly(
+                nearest.asRl(),
+                @ptrCast(&samples),
+                samples.len)) continue;
+            hitbox.hit.* = true;
         }
     }
 }

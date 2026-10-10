@@ -1,4 +1,3 @@
-
 pub const Plugin = struct {
     pub fn build(self: @This(), app: *core.App) !void {
         _ = self;
@@ -29,6 +28,7 @@ pub const Plugin = struct {
             components.transform.Position{ .x = 70, .y = 70, .prev_x = 70, .prev_y = 70 },
             components.transform.Velocity{ .x = 0, .y = 0 },
             components.collision.ColliderCircle{ .radius = 18.0, .mask = 1, .mass = 0.5 },
+            components.player.HurtBox{ .radius = 18.0, .mask = 1 },
             components.transform.Rotation{ .teta = 0, .prev_teta = 0, .target_teta = 0, .turn_speed_deg = 360.0 * 3 },
             components.render.Model3D{ .name = "witch", .render_texture = 0, .mesh = 0, .material = 2 },
             components.render.RenderInto{ .into = rt },
