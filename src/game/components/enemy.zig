@@ -23,6 +23,7 @@ pub const Shockwave = struct {
     size: f32 = 0,
     size_init: f32,
     size_limit: f32,
+    damage: i16,
     ttl: f32,
     accum: f32 = 0,
 };
@@ -32,6 +33,7 @@ pub const ShockwaveView = struct {
     size: *f32,
     size_init: *f32,
     size_limit: *f32,
+    damage: *i16,
     ttl: *f32,
     accum: *f32,
 };

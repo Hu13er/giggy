@@ -294,6 +294,7 @@ fn spawnShockwave(app: *core.App, cb: *ecs.CommandBuffer, pos: xmath.Vec2) !void
     const e = app.world.reserveEntity();
     try cb.spawn(e, .{
         components.enemy.Shockwave{
+            .damage = 256,
             .size_init = 32,
             .size_limit = 256,
             .ttl = 1.0,
@@ -325,6 +326,7 @@ fn spawnShockwave(app: *core.App, cb: *ecs.CommandBuffer, pos: xmath.Vec2) !void
 
 pub fn shockwaveExpandSystem(app: *core.App) !void {
     const time_res = app.getResource(core.Time).?;
+    const hitmemo_res = app.getResource(resource.HitMemo).?;
     const render_targets = app.getResource(render_resources.RenderTargets).?;
 
     var cb = try ecs.CommandBuffer.init(app.gpa);
@@ -360,6 +362,7 @@ pub fn shockwaveExpandSystem(app: *core.App) !void {
                 if (it.getOrNull(components.render.RenderIntoView)) |target| {
                     _ = render_targets.unload(target.into.*);
                 }
+                hitmemo_res.remove(entity);
                 try cb.despawn(entity);
             }
         }
@@ -371,7 +374,8 @@ const SHOCKWAVE_ESTIMATE_POINTS_COUNT = 16;
 
 pub fn shockwaveHitboxSystem(app: *core.App) !void {
     const time_res = app.getResource(core.Time).?;
-    const debug_res = app.getResource(debug.resources.DebugState).?;
+    const debug_res = app.getResource(debug.resources.DebugState);
+    const hitmemo_res = app.getResource(resource.HitMemo).?;
 
     var it = app.world.query(&[_]type{
         components.transform.Position,
@@ -379,7 +383,7 @@ pub fn shockwaveHitboxSystem(app: *core.App) !void {
         components.enemy.ShockwaveHitbox,
         components.world.Room,
     });
-    while (it.next()) |_| {
+    while (it.next()) |entity| {
         const pos = it.get(components.transform.PositionView);
         const shockwave = it.get(components.enemy.ShockwaveView);
         const hitbox = it.get(components.enemy.ShockwaveHitboxView);
@@ -401,8 +405,11 @@ pub fn shockwaveHitboxSystem(app: *core.App) !void {
             samples[t].y = pos.y.* + hitbox.height.* * std.math.sin(teta) / 2.0;
         }
 
-        debug_res.clearPoints();
-        for (samples) |s| try debug_res.addPoint(.{ .x = s.x, .y = s.y, .color = rl.PINK });
+        if (debug_res != null) {
+            debug_res.?.clearPoints();
+            for (samples) |s|
+                try debug_res.?.addPoint(.{ .x = s.x, .y = s.y, .color = rl.PINK });
+        }
 
         hitbox.hit.* = false;
         var hurtbox_it = app.world.query(&[_]type{
@@ -410,7 +417,7 @@ pub fn shockwaveHitboxSystem(app: *core.App) !void {
             components.player.HurtBox,
             components.world.Room,
         });
-        while (hurtbox_it.next()) |_| {
+        while (hurtbox_it.next()) |target| {
             const hb_pos = hurtbox_it.get(components.transform.PositionView);
             const hb_col = hurtbox_it.get(components.player.HurtBoxView);
             const hb_rm = hurtbox_it.get(components.world.RoomView);
@@ -426,7 +433,12 @@ pub fn shockwaveHitboxSystem(app: *core.App) !void {
                 nearest.asRl(),
                 @ptrCast(&samples),
                 samples.len)) continue;
-            hitbox.hit.* = true;
+            if (try hitmemo_res.hit(entity, target)) {
+                if (hurtbox_it.getOrNull(components.player.HealthView)) |health| {
+                    health.value.* = @max(0, health.value.* - shockwave.damage.*);
+                    std.log.debug("HIT! {} {}, HP: {}\n", .{entity, target, health.value.*});
+                }
+            }
         }
     }
 }

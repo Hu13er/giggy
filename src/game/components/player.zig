@@ -12,6 +12,17 @@ pub const PlayerView = struct {
     spawn_id: *u8,
 };
 
+pub const Health = struct {
+    value: i16,
+    max_value: u16,
+};
+
+pub const HealthView = struct {
+    pub const Of = Health;
+    value: *i16,
+    max_value: *u16,
+};
+
 pub const HurtBox = struct {
     radius: f32,
     mask: u64,

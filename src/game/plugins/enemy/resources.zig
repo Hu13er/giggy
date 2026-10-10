@@ -53,6 +53,48 @@ pub const ChasePath = struct {
     }
 };
 
+pub const HitMemo = struct {
+    pub const HitPair = struct {
+        hitbox: ecs.Entity,
+        target: ecs.Entity,
+    };
+
+    hit_pairs: std.ArrayList(HitPair),
+    gpa: mem.Allocator,
+
+    const Self = @This();
+
+    pub fn init(gpa: mem.Allocator) !Self {
+        return .{
+            .hit_pairs = try .initCapacity(gpa, 16),
+            .gpa = gpa,
+        };
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.hit_pairs.deinit(self.gpa);
+    }
+
+    pub fn hit(self: *Self, hitbox: ecs.Entity, target: ecs.Entity) !bool {
+        for (self.hit_pairs.items) |p| {
+            if (p.target == target) return false;
+        }
+        try self.hit_pairs.append(self.gpa, .{ .hitbox = hitbox, .target = target });
+        return true;
+    }
+
+    pub fn remove(self: *Self, hitbox: ecs.Entity) void {
+        var i: usize = 0;
+        while (i < self.hit_pairs.items.len) {
+            if (self.hit_pairs.items[i].hitbox == hitbox) {
+                _ = self.hit_pairs.swapRemove(i);
+            } else {
+                i += 1;
+            }
+        }
+    }
+};
+
 const std = @import("std");
 const mem = std.mem;
 const assert = std.debug.assert;

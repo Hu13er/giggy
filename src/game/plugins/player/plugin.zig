@@ -25,6 +25,7 @@ pub const Plugin = struct {
 
         const player_entity = try app.world.spawn(.{
             components.player.Player{ .id = 1, .just_spawned = true, .spawn_id = 0 },
+            components.player.Health{ .value = 1200, .max_value = 1200 },
             components.transform.Position{ .x = 70, .y = 70, .prev_x = 70, .prev_y = 70 },
             components.transform.Velocity{ .x = 0, .y = 0 },
             components.collision.ColliderCircle{ .radius = 18.0, .mask = 1, .mass = 0.5 },
