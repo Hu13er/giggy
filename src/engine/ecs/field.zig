@@ -29,12 +29,14 @@ pub const Field = struct {
                 pub const v: Meta = blk: {
                     const ti = @typeInfo(T);
                     assert(ti == .@"struct");
-                    const field = ti.@"struct".fields[index];
+                    const fields = ti.@"struct";
+                    const field_name = fields.field_names[index];
+                    const FieldType = fields.field_types[index];
                     break :blk .{
                         .index = index,
-                        .name = field.name,
-                        .size = @sizeOf(field.type),
-                        .alignment = @alignOf(field.type),
+                        .name = field_name,
+                        .size = @sizeOf(FieldType),
+                        .alignment = @alignOf(FieldType),
                     };
                 };
             }.v;

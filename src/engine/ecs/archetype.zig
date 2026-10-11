@@ -175,7 +175,7 @@ pub const Archetype = struct {
                 assert(out.len == self.size());
 
                 const ti = @typeInfo(Bundle);
-                const fields = ti.@"struct".fields;
+                const fields = ti.@"struct";
 
                 const Entry = struct {
                     name: [:0]const u8,
@@ -185,15 +185,14 @@ pub const Archetype = struct {
                 };
 
                 const entries = comptime blk: {
-                    var tmp: [fields.len]Entry = undefined;
-                    for (fields, 0..) |f, i| {
-                        const T = f.type;
+                    var tmp: [fields.field_types.len]Entry = undefined;
+                    for (fields.field_names, fields.field_types, fields.field_attrs, 0..) |field_name, T, attrs, i| {
                         util.assertComponent(T);
                         const cid = util.cidOf(T);
                         tmp[i] = .{
-                            .name = f.name,
+                            .name = field_name,
                             .cid = cid,
-                            .offset = if (!f.is_comptime) @offsetOf(Bundle, f.name) else null,
+                            .offset = if (!attrs.@"comptime") @offsetOf(Bundle, field_name) else null,
                             .T = T,
                         };
                     }
@@ -324,7 +323,7 @@ pub const Archetype = struct {
     pub fn append(self: *Self, gpa: mem.Allocator, entity: Entity, component_list: anytype) !void {
         const ti = @typeInfo(@TypeOf(component_list));
         assert(ti == .@"struct");
-        const fields_len = ti.@"struct".fields.len;
+        const fields_len = ti.@"struct".field_types.len;
         assert(fields_len == self.components.len);
 
         const index = try self.appendEntity(gpa, entity);
@@ -335,23 +334,22 @@ pub const Archetype = struct {
     pub fn appendPartial(self: *Self, gpa: mem.Allocator, component_list: anytype) !void {
         const ti = @typeInfo(@TypeOf(component_list));
         assert(ti == .@"struct");
-        const fields = ti.@"struct".fields;
+        const fields = ti.@"struct";
 
-        var cid_indexes: [fields.len]usize = undefined;
-        inline for (fields, 0..) |f, i| {
-            const T = f.type;
+        var cid_indexes: [fields.field_types.len]usize = undefined;
+        inline for (fields.field_types, 0..) |T, i| {
             comptime util.assertComponent(T);
             const cid = comptime util.cidOf(T);
             cid_indexes[i] = self.indexOfCID(cid) orelse unreachable;
         }
 
         // check for duplication
-        for (fields, 0..) |_, i| {
+        for (fields.field_types, 0..) |_, i| {
             for (0..i) |j| if (cid_indexes[i] == cid_indexes[j]) unreachable;
         }
 
-        inline for (fields, cid_indexes, 0..) |f, cid_idx, i| {
-            const value = @field(component_list, f.name);
+        inline for (fields.field_names, cid_indexes, 0..) |field_name, cid_idx, i| {
+            const value = @field(component_list, field_name);
             self.components[cid_idx].append(gpa, value) catch |err| {
                 for (0..i) |j|
                     self.components[cid_indexes[j]].pop();
@@ -446,7 +444,7 @@ pub const Archetype = struct {
         const view_ti = @typeInfo(View);
         if (view_ti != .@"struct")
             @compileError("View should be a struct");
-        const view_fields = view_ti.@"struct".fields;
+        const view_fields = view_ti.@"struct";
 
         if (!@hasDecl(View, "Of"))
             @compileError("View should declare 'Of'");
@@ -454,18 +452,18 @@ pub const Archetype = struct {
         const comp_ti = @typeInfo(Of);
         if (comp_ti != .@"struct")
             @compileError("View.Of should be a struct");
-        const comp_fields = comp_ti.@"struct".fields;
+        const comp_fields = comp_ti.@"struct";
         comptime util.assertComponent(Of);
         const of_cid = comptime util.cidOf(Of);
 
         const comp = self.components[self.indexOfCID(of_cid) orelse unreachable];
-        assert(comp_fields.len == comp.fields.len);
+        assert(comp_fields.field_types.len == comp.fields.len);
 
         var out: View = undefined;
-        inline for (view_fields) |f| {
-            const comp_idx = std.meta.fieldIndex(Of, f.name) orelse
-                @compileError("field " ++ f.name ++ " not found in component");
-            @field(out, f.name) = comp.fields[comp_idx].at(comp_fields[comp_idx].type, index);
+        inline for (view_fields.field_names, view_fields.field_types) |field_name, _| {
+            const comp_idx = std.meta.fieldIndex(Of, field_name) orelse
+                @compileError("field " ++ field_name ++ " not found in component");
+            @field(out, field_name) = comp.fields[comp_idx].at(comp_fields.field_types[comp_idx], index);
         }
 
         return out;
@@ -482,8 +480,8 @@ pub const Archetype = struct {
         const comp = self.components[self.indexOfCID(cid) orelse unreachable];
 
         var out: util.ViewOf(C) = undefined;
-        inline for (ti.@"struct".fields, 0..) |f, i| {
-            @field(out, f.name) = comp.fields[i].at(f.type, index);
+        inline for (ti.@"struct".field_names, ti.@"struct".field_types, 0..) |field_name, FieldType, i| {
+            @field(out, field_name) = comp.fields[i].at(FieldType, index);
         }
 
         return out;

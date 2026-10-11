@@ -18,14 +18,14 @@ test isUnique {
     try testing.expectEqual(false, isUnique(u8, &array3));
 }
 
-pub fn typesOfBundle(comptime Bundle: type) [@typeInfo(Bundle).@"struct".fields.len]type {
+pub fn typesOfBundle(comptime Bundle: type) [@typeInfo(Bundle).@"struct".field_types.len]type {
     const ti = @typeInfo(Bundle);
     if (ti != .@"struct")
         @compileError("Bundle should be a struct");
-    const fields = ti.@"struct".fields;
+    const fields = ti.@"struct".field_types;
     var out: [fields.len]type = undefined;
-    inline for (fields, 0..) |field, i| {
-        out[i] = field.type;
+    inline for (fields, 0..) |FieldType, i| {
+        out[i] = FieldType;
     }
     return out;
 }
@@ -79,23 +79,17 @@ pub fn ViewOf(comptime C: type) type {
     const ti = @typeInfo(C);
     assert(ti == .@"struct");
 
-    const fields = ti.@"struct".fields;
+    const fields = ti.@"struct";
 
-    var field_names: [fields.len][]const u8 = undefined;
-    var field_types: [fields.len]type = undefined;
+    var field_names: [fields.field_names.len][]const u8 = undefined;
+    var field_types: [fields.field_types.len]type = undefined;
 
-    inline for (fields, 0..) |f, i| {
-        field_names[i] = f.name;
-        field_types[i] = *f.type;
+    inline for (fields.field_names, fields.field_types, 0..) |name, FieldType, i| {
+        field_names[i] = name;
+        field_types[i] = *FieldType;
     }
 
-    return @Struct(
-        .auto,
-        null,
-        &field_names,
-        &field_types,
-        &@splat(.{})
-    );
+    return @Struct(.auto, null, &field_names, &field_types, &@splat(.{}));
 }
 
 test ViewOf {

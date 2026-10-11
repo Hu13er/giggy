@@ -13,7 +13,7 @@ pub const MultiField = struct {
             util.assertComponent(T);
             return &struct {
                 const cid = util.cidOf(T);
-                const l = @typeInfo(T).@"struct".fields.len;
+                const l = @typeInfo(T).@"struct".field_types.len;
                 const fs: [l]Field.Meta = blk: {
                     var tmp: [l]Field.Meta = undefined;
                     for (0..l) |i| tmp[i] = Field.Meta.fromStruct(T, i).*;
@@ -28,13 +28,13 @@ pub const MultiField = struct {
             const cid = comptime util.cidOf(T);
             const ti = @typeInfo(T);
             assert(cid == self.cid);
-            const fields = ti.@"struct".fields;
-            assert(fields.len == self.fields.len);
+            const fields = ti.@"struct";
+            assert(fields.field_types.len == self.fields.len);
 
-            inline for (fields, 0..) |f, i| {
+            inline for (fields.field_names, fields.field_types, 0..) |field_name, FieldType, i| {
                 const base_ptr = @intFromPtr(value);
-                const offset = @offsetOf(T, f.name);
-                const field_ptr = @as(*f.type, @ptrFromInt(base_ptr + offset));
+                const offset = @offsetOf(T, field_name);
+                const field_ptr = @as(*FieldType, @ptrFromInt(base_ptr + offset));
                 out[i] = std.mem.asBytes(field_ptr);
             }
         }
@@ -44,29 +44,29 @@ pub const MultiField = struct {
             const cid = comptime util.cidOf(T);
             assert(cid == self.cid);
             const ti = @typeInfo(T);
-            const fields = ti.@"struct".fields;
-            assert(fields.len == self.fields.len);
+            const fields = ti.@"struct";
+            assert(fields.field_types.len == self.fields.len);
             assert(out.len == self.size());
 
             var idx: usize = 0;
             switch (@TypeOf(value)) {
                 *const T, *T => {
-                    inline for (fields, 0..) |f, i| {
+                    inline for (fields.field_names, fields.field_types, 0..) |field_name, FieldType, i| {
                         const base_ptr = @intFromPtr(value);
-                        const offset = @offsetOf(T, f.name);
-                        const field_ptr = @as(*f.type, @ptrFromInt(base_ptr + offset));
+                        const offset = @offsetOf(T, field_name);
+                        const field_ptr = @as(*FieldType, @ptrFromInt(base_ptr + offset));
                         const s = self.fields[i].size;
-                        assert(s == @sizeOf(f.type));
+                        assert(s == @sizeOf(FieldType));
                         @memcpy(out[idx .. idx + s], std.mem.asBytes(field_ptr));
                         idx += s;
                     }
                 },
                 T => {
-                    inline for (fields, 0..) |f, i| {
+                    inline for (fields.field_names, fields.field_types, 0..) |field_name, FieldType, i| {
                         const s = self.fields[i].size;
-                        assert(s == @sizeOf(f.type));
+                        assert(s == @sizeOf(FieldType));
                         // Use toBytes instead of asBytes to support comptime values:
-                        const byts = mem.toBytes(@field(value, f.name));
+                        const byts = mem.toBytes(@field(value, field_name));
                         @memcpy(out[idx .. idx + s], &byts);
                         idx += s;
                     }
@@ -118,7 +118,7 @@ pub const MultiField = struct {
         const T = @TypeOf(value);
         const ti = @typeInfo(T);
         assert(ti == .@"struct");
-        const field_count = ti.@"struct".fields.len;
+        const field_count = ti.@"struct".field_types.len;
         assert(field_count == self.fields.len);
 
         var extracted: [field_count][]const u8 = undefined;

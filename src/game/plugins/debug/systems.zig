@@ -208,13 +208,13 @@ fn drawDebugValues(debug: *resources.DebugState, x: c_int, y: c_int, line_height
     var line_y = y;
     var buffer: [256]u8 = undefined;
     while (it.next()) |entry| {
-        const line = std.fmt.bufPrintZ(&buffer, "{s}: {s}", .{
+        const line = std.fmt.bufPrintSentinel(&buffer, "{s}: {s}", .{
             entry.key_ptr.*,
             entry.value_ptr.*,
-        }) catch |err| switch (err) {
-            error.NoSpaceLeft => std.fmt.bufPrintZ(&buffer, "{s}: <truncated>", .{
+        }, 0) catch |err| switch (err) {
+            error.NoSpaceLeft => std.fmt.bufPrintSentinel(&buffer, "{s}: <truncated>", .{
                 entry.key_ptr.*,
-            }) catch continue,
+            }, 0) catch continue,
         };
         rl.DrawText(line, x, line_y, font_size, color);
         line_y += line_height;

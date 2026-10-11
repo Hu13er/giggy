@@ -148,7 +148,7 @@ pub fn main() !void {
         }
 
         var buf: [64]u8 = undefined;
-        const text = try std.fmt.bufPrintZ(&buf, "items: {d}", .{world.count()});
+        const text = try std.fmt.bufPrintSentinel(&buf, "items: {d}", .{world.count()}, 0);
         const text_ptr = @as([*c]const u8, text.ptr);
         rl.DrawText(text_ptr, 10, screenHeight - 60, 16, rl.BLUE);
         rl.DrawText("Buffers flush at sync points; blobs split on walls.", 10, 10, 16, rl.DARKGRAY);

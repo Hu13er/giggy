@@ -200,7 +200,7 @@ fn drawStat(x: i32, y: i32, label: []const u8, value: u64, font_size: i32) void 
     var buf: [128]u8 = undefined;
     var num_buf: [64]u8 = undefined;
     const num = formatU64Commas(&num_buf, value) catch format_error;
-    const line = std.fmt.bufPrintZ(&buf, "{s}: {s}", .{ label, num }) catch format_error;
+    const line = std.fmt.bufPrintSentinel(&buf, "{s}: {s}", .{ label, num }, 0) catch format_error;
     rl.DrawText(line, x, y, font_size, rl.BLACK);
 }
 
@@ -208,7 +208,7 @@ fn drawStatNs(x: i32, y: i32, label: []const u8, ns: u64, font_size: i32) void {
     var buf: [128]u8 = undefined;
     var num_buf: [64]u8 = undefined;
     const num = formatU64Commas(&num_buf, ns) catch format_error;
-    const line = std.fmt.bufPrintZ(&buf, "{s}: {s} ns", .{ label, num }) catch format_error;
+    const line = std.fmt.bufPrintSentinel(&buf, "{s}: {s} ns", .{ label, num }, 0) catch format_error;
     rl.DrawText(line, x, y, font_size, rl.BLACK);
 }
 

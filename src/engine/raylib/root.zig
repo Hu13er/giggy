@@ -1,9 +1,5 @@
-pub const raylib = @cImport({
-    @cInclude("raylib.h");
-});
-pub const raymath = @cImport({
-    @cInclude("raymath.h");
-});
+pub const raylib = @import("raylib_c");
+pub const raymath = @import("raymath_c");
 
 test {
     _ = std.testing.refAllDecls(@This());
