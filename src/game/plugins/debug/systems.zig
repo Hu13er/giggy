@@ -119,7 +119,7 @@ fn renderEnemyHitboxes(app: *core.App) void {
 
         const x = interpolatedPositionX(pos, time.alpha);
         const y = interpolatedPositionY(pos, time.alpha);
-        const color = rl.ColorAlpha(if (hitbox.hit.*) rl.RED else rl.BLUE, 0.2);
+        const color = rl.ColorAlpha(rl.BLUE, 0.2);
         rl.DrawEllipseV(
             .{ .x = x, .y = y },
             hitbox.width.* / 2.0,

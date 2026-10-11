@@ -42,7 +42,6 @@ pub const ShockwaveHitbox = struct {
     width: f32 = 0,
     height: f32 = 0,
     mask: u64,
-    hit: bool = false, // TODO: delete this!
     accum: u32 = 0,
 };
 
@@ -51,6 +50,5 @@ pub const ShockwaveHitboxView = struct {
     width: *f32,
     height: *f32,
     mask: *u64,
-    hit: *bool,
     accum: *u32,
 };

@@ -177,7 +177,7 @@ pub fn enemyAISystem(app: *core.App) !void {
                             break :blk;
                         if (!rl.CheckCollisionCircles(
                             .{ .x = player_pos.x.*, .y = player_pos.y.* },
-                            player_hurtbox.?.radius.* + 5.0,
+                            player_hurtbox.?.radius.* + 15.0,
                             .{ .x = pos.x.*, .y = pos.y.* },
                             enemy_col.radius.*,
                         )) break :blk;
@@ -297,7 +297,7 @@ fn spawnShockwave(app: *core.App, cb: *ecs.CommandBuffer, pos: xmath.Vec2) !void
             .damage = 256,
             .size_init = 32,
             .size_limit = 256,
-            .ttl = 1.0,
+            .ttl = 0.8,
         },
         components.enemy.ShockwaveHitbox{ .mask = 1 },
         components.render.Sprite{ .name = "shockwave", .index = 0 },
@@ -411,7 +411,6 @@ pub fn shockwaveHitboxSystem(app: *core.App) !void {
                 try debug_res.?.addPoint(.{ .x = s.x, .y = s.y, .color = rl.PINK });
         }
 
-        hitbox.hit.* = false;
         var hurtbox_it = app.world.query(&[_]type{
             components.transform.Position,
             components.player.HurtBox,
