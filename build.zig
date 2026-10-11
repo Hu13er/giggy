@@ -60,6 +60,14 @@ pub fn build(b: *std.Build) void {
         engine_mod.addSystemIncludePath(.{ .cwd_relative = include_dir });
     }
 
+    const engine_tests = b.addTest(.{
+        .root_module = engine_mod,
+    });
+    const run_engine_tests = b.addRunArtifact(engine_tests);
+
+    const test_step = b.step("test-engine", "Run engine unit tests");
+    test_step.dependOn(&run_engine_tests.step);
+
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/game/main.zig"),
         .target = target,

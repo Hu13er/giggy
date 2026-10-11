@@ -35,7 +35,12 @@ pub fn renderHealthSystem(app: *core.App) !void {
             if (@abs(bar_res.current_perc - new_perc) < 0.005) {
                 bar_res.current_perc = new_perc;
             } else {
-                bar_res.current_perc -= (bar_res.current_perc - new_perc) * time_res.dt * conv_coefficient;
+                const t = std.math.clamp(
+                    time_res.dt * conv_coefficient,
+                    0.0,
+                    1.0,
+                );
+                bar_res.current_perc += (new_perc - bar_res.current_perc) * t;
             }
             const src = rl.Rectangle{
                 .x = 0,

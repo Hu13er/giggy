@@ -30,9 +30,7 @@ zig build examples
 
 ## Tests
 
-- Run engine tests: `zig test src/engine/$MODULE`
-- If raylib headers are not in a standard include path, add includes, e.g.:
-  - `zig test --dep engine -Mengine=src/engine/root.zig -I third_party/raylib/include -isystem /usr/include/`
+Run engine tests with: `zig build test-engine --summary all`
 
 ## Submitting changes
 

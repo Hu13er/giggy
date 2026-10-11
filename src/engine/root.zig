@@ -9,7 +9,7 @@ pub const raymath = @import("raylib/root.zig").raymath;
 pub const algo = @import("algo/root.zig");
 
 // run tests with:
-// zig test --dep engine -Mengine=src/engine/root.zig -I third_party/raylib/include -isystem /usr/include/
+// zig build test-engine --summary all
 test {
     _ = std.testing.refAllDecls(@This());
 }
