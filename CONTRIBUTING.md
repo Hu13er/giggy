@@ -4,7 +4,7 @@ Thanks for your interest in helping! This project is a handcrafted ECS + game in
 
 ## Quick start
 
-1) Install Zig (recent stable version - currently `0.16.0`).
+1) Install Zig (recent stable version - currently `0.17.0`).
 2) Install raylib, or build it locally as described in `README.md`.
 3) Build and run:
 
