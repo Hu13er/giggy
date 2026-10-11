@@ -1,3 +1,4 @@
+pub const _plugin = @import("plugins/_plugin/root.zig");
 pub const core = @import("plugins/core/root.zig");
 pub const camera = @import("plugins/camera/root.zig");
 pub const assets = @import("plugins/assets/root.zig");
