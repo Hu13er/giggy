@@ -14,13 +14,13 @@ pub const PlayerView = struct {
 
 pub const Health = struct {
     value: i16,
-    max_value: u16,
+    max_value: i16,
 };
 
 pub const HealthView = struct {
     pub const Of = Health;
     value: *i16,
-    max_value: *u16,
+    max_value: *i16,
 };
 
 pub const HurtBox = struct {

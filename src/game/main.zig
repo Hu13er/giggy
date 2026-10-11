@@ -36,6 +36,7 @@ pub fn main(init: std.process.Init) !void {
     });
     try app.addPlugin(game_plugins.level.Plugin, .{});
     try app.addPlugin(game_plugins.fade.Plugin, .{});
+    try app.addPlugin(game_plugins.hud.Plugin, .{});
 
     // main loop
     while (!rl.WindowShouldClose()) {

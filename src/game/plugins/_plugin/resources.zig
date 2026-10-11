@@ -10,7 +10,7 @@ pub const SampleResource = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        self.paths.deinit();
+        _ = self;
     }
 };
 

@@ -5,7 +5,15 @@
         "level1/wall1": "resources/level1/wall1.png",
         "level1/wall2": "resources/level1/wall2.png",
         "level1/wall3": "resources/level1/wall3.png",
-        "level2/map": "resources/level2/map.png"
+        "level2/map": "resources/level2/map.png",
+        "hud/back1": "resources/hud/bar/back1.png",
+        "hud/back2": "resources/hud/bar/back2.png",
+        "hud/border": "resources/hud/bar/border.png",
+        "hud/fill": "resources/hud/bar/fill.png",
+        "hud/highlight": "resources/hud/bar/highlight.png",
+        "hud/scroll_fill": "resources/hud/bar/scroll_fill.png",
+        "hud/scroll_lip": "resources/hud/bar/scroll_lip.png",
+        "hud/shadow": "resources/hud/bar/shadow.png"
     },
     "sprites": {
         "shockwave": "resources/sprites/shockwave/"
