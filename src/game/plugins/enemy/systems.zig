@@ -250,7 +250,10 @@ pub fn updateAnimationSystem(app: *core.App) !void {
                 anim.speed.* = @as(f32, @floatFromInt(count)) / window;
 
                 // scale model
-                const remaining = @as(f32, @floatFromInt(enemy.release_tick.* - time_res.tick));
+                const remaining = if (enemy.release_tick.* >= time_res.tick)
+                    @as(f32, @floatFromInt(enemy.release_tick.* - time_res.tick))
+                else
+                    0;
                 const progress = 1.0 - remaining / @as(f32, @floatFromInt(ENEMY_RELEASE_DELTA_TICK));
                 const scaled = @min(64.0 + (94.0 - 64.0) * (progress * (1 + time_res.alpha * progress)), 94.0);
                 wh.w.* = scaled;
@@ -463,4 +466,3 @@ const level_resources = game.plugins.level.resources;
 const player_resources = game.plugins.player.resources;
 const render_resources = game.plugins.render.resources;
 const debug = game.plugins.debug;
-

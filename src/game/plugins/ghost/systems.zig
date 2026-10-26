@@ -214,16 +214,19 @@ pub fn updateAnimationSystem(app: *core.App) !void {
 
         if (room_mgr.current != room.id.*) continue;
 
+        const p = if (enemy.next_cycle_tick.* >= time_res.tick)
+            (@as(f32, @floatFromInt(enemy.next_cycle_tick.* - time_res.tick)) - time_res.alpha) /
+                        @as(f32, @floatFromInt(GHOST_APPEAR_STATE_TICK))
+        else
+            0.0;
         switch (enemy.state.*) {
             .hidden => {
                 alpha.alpha.* = 0.0;
             },
             .appear => {
-                const p = 1.0 - (@as(f32, @floatFromInt(enemy.next_cycle_tick.* - time_res.tick)) - time_res.alpha) /
-                            @as(f32, @floatFromInt(GHOST_APPEAR_STATE_TICK));
                 try debug_res.setFmt("next_cycle_tick", "{}", .{enemy.next_cycle_tick});
                 try debug_res.setFmt("p", "{}", .{p});
-                alpha.alpha.* = std.math.clamp(p * GHOST_DEFAULT_ALPHA, 0.0, GHOST_DEFAULT_ALPHA);
+                alpha.alpha.* = std.math.clamp((1.0 - p) * GHOST_DEFAULT_ALPHA, 0.0, GHOST_DEFAULT_ALPHA);
                 anim.index.* = set.idle.*;
                 anim.speed.* = set.idle_speed.*;
             },
@@ -236,8 +239,6 @@ pub fn updateAnimationSystem(app: *core.App) !void {
                 anim.speed.* = @as(f32, @floatFromInt(count)) / window;
             },
             .disappear => {
-                const p = (@as(f32, @floatFromInt(enemy.next_cycle_tick.* - time_res.tick)) - time_res.alpha) /
-                            @as(f32, @floatFromInt(GHOST_APPEAR_STATE_TICK));
                 try debug_res.setFmt("next_cycle_tick", "{}", .{enemy.next_cycle_tick});
                 try debug_res.setFmt("p", "{}", .{p});
                 alpha.alpha.* = std.math.clamp(p * GHOST_DEFAULT_ALPHA, 0.0, GHOST_DEFAULT_ALPHA);
