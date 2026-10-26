@@ -22,6 +22,7 @@
         "witch": "resources/gltf/Witch.glb",
         "dragon": "resources/gltf/Dragon.glb",
         "skull": "resources/gltf/Skull.glb",
+        "ghost": "resources/gltf/Ghost.glb",
         "greenman": "resources/gltf/greenman.glb"
     },
     "shaders": {

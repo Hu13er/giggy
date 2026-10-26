@@ -19,6 +19,24 @@ pub const EnemyView = struct {
     release_tick: *u32,
 };
 
+pub const GhostState = enum {
+    hidden,
+    appear,
+    charge,
+    disappear,
+};
+
+pub const Ghost = struct {
+    state: GhostState,
+    next_cycle_tick: u32 = 0,
+};
+
+pub const GhostView = struct {
+    pub const Of = Ghost;
+    state: *GhostState,
+    next_cycle_tick: *u32,
+};
+
 pub const Shockwave = struct {
     size: f32 = 0,
     size_init: f32,

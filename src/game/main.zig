@@ -30,6 +30,7 @@ pub fn main(init: std.process.Init) !void {
     try app.addPlugin(game_plugins.physics.Plugin, .{});
     try app.addPlugin(game_plugins.player.Plugin, .{});
     try app.addPlugin(game_plugins.enemy.Plugin, .{});
+    try app.addPlugin(game_plugins.ghost.Plugin, .{});
     try app.addPlugin(game_plugins.camera.Plugin, .{
         .width = screenWidth,
         .height = screenHeight,

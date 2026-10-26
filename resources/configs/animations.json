@@ -1,4 +1,9 @@
 {
+    "ghost": {
+        "attack": 0,
+        "idle": 10,
+        "idle_speed": 60
+    },
     "skull": {
         "attack": 0,
         "attack_count": 3,

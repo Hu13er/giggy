@@ -63,6 +63,19 @@ pub const SkullAnimSetView = struct {
     dead_speed: *f32,
 };
 
+pub const GhostAnimSet = struct {
+    idle: usize,
+    idle_speed: f32,
+    attack: usize,
+};
+
+pub const GhostAnimSetView = struct {
+    pub const Of = GhostAnimSet;
+    idle: *usize,
+    idle_speed: *f32,
+    attack: *usize,
+};
+
 pub const LocomotionAnimState = struct {
     moving: bool,
 };
